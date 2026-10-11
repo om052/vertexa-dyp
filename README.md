@@ -53,6 +53,84 @@ For production configuration, set `CODEQUEST_ENV=production`, provide a
 absolute path. Production startup fails rather than silently choosing a
 database path. Never commit a real `.env` file or secret.
 
+## Buddy Gemini setup
+
+The app defaults to `BUDDY_PROVIDER=mock`; this deterministic mode is offline
+and sends no learner messages to an AI service. To select Gemini, install the
+declared dependency and edit the ignored `.env` file (never `.env.example`):
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+notepad .env
+```
+
+In `.env`, set `BUDDY_PROVIDER=gemini`, `GEMINI_API_KEY` to the key from Google
+AI Studio, and `BUDDY_GEMINI_ADULTS_ONLY=true` only if the service is genuinely
+restricted to adults. Set `BUDDY_GEMINI_FREE_TIER_CONFIRMED=true` only after
+checking that the model is available in the project's free tier and that
+billing is not enabled. Keep the key in this ignored file; never put it in
+tracked files, templates, JavaScript, logs, or commands.
+
+The adapter uses the official `google-genai` SDK and is fixed to
+`gemini-2.5-flash`, listed in Google's current model catalog. Google's pricing
+documentation describes free access as limited to certain models, and quotas
+are project-specific and may change. The app cannot inspect AI Studio billing
+or guarantee a project's free-tier status. The two `BUDDY_GEMINI_*` flags are
+operator attestations, not a technical billing lock. Check AI Studio before
+enabling Gemini; no alternate model or provider is selected automatically.
+
+Google's current Gemini API terms require API clients to be restricted to
+adults 18 or older. Do not enable this integration for a service intended for,
+or likely to be accessed by, minors. Each learner must separately confirm
+they are 18+ and consent before their first Gemini request in a signed-in
+session. Google's terms say unpaid Gemini prompts and responses may be used to
+improve services and may be processed by human reviewers. Do not submit
+personal, sensitive, confidential, or secret information. Only the current
+message and selected language are sent; saved conversation history and Buddy
+memory are deliberately excluded. Local saving remains controlled by its
+separate existing consent.
+
+Gemini requests make one SDK attempt, use a 15-second SDK request timeout, cap
+generation at 192 tokens and responses at 1,000 characters, and add stricter
+process-local per-user/global request limits to the existing Buddy limiter.
+The global limiter is not shared across multiple workers and these safeguards
+do not replace Google account quotas. Quota exhaustion, bad credentials,
+timeouts, and outages fail visibly; Gemini mode never falls back to the mock.
+
+### Start, switch, and restart in Windows PowerShell
+
+With the values stored in `.env`, start Gemini mode from the project folder:
+
+```powershell
+$env:BUDDY_PROVIDER = "gemini"
+$env:BUDDY_GEMINI_ADULTS_ONLY = "true"
+$env:BUDDY_GEMINI_FREE_TIER_CONFIRMED = "true"
+python -m flask --app app:create_app run --debug
+```
+
+The API key is read by Flask from `GEMINI_API_KEY` in `.env`; it is not printed
+by these commands or sent to the browser. To switch back to the offline mock,
+stop Flask with `Ctrl+C`, then run:
+
+```powershell
+$env:BUDDY_PROVIDER = "mock"
+python -m flask --app app:create_app run --debug
+```
+
+After changing `.env` or provider settings, stop Flask with `Ctrl+C` and start
+it again with the selected command. The debug reloader reloads source code;
+environment configuration is read when the server process starts. To remove a
+PowerShell override and let `.env` control that setting, run
+`Remove-Item Env:BUDDY_PROVIDER` (and similarly remove the `BUDDY_GEMINI_*`
+overrides).
+
+Troubleshooting: verify missing keys in `.env` and restart; verify credentials
+and model access in Google AI Studio for authentication errors; wait and check
+the project's quota page for quota errors; retry manually after timeouts or
+outages. Responses do not include provider details or credentials, and errors
+never trigger a mock fallback.
+
 ## Run
 
 ```powershell
@@ -73,8 +151,10 @@ POST-only logout (`/auth/logout`). Public curriculum remains available without
 an account. If the database has no seeded catalog, learning pages show an
 empty state; browsing never seeds or changes curriculum data. Signed-in users
 can access Buddy's authenticated chat, which currently uses a clearly labeled
-deterministic local mock rather than a real AI provider. Saved lesson progress,
-interactive coding, real AI assistance, games, and XP are not implemented.
+deterministic local mock by default. An operator may explicitly select the
+consent-gated Gemini integration described above; it is unavailable until its
+server-side configuration is valid. Saved lesson progress, interactive coding,
+games, and XP are not implemented.
 
 The interface uses server-rendered Flask templates with plain HTML, CSS, and
 JavaScript. API-provided lesson text and code examples are inserted as text,
@@ -83,6 +163,18 @@ states and adapts to narrow screens. Account pages use the same responsive
 layouts, including an accessible expandable mobile navigation menu. Form
 submission and validation run on Flask, so registration and account editing do
 not depend on JavaScript.
+
+The authenticated Buddy page progressively enhances its SVG fallback with
+Google's pinned `model-viewer` 4.1.0 browser component. It loads only
+`app/static/models/buddy/greetings.glb`; the provided GLBs were byte-identical
+in this workspace and each is about 59 MB. Idle, greeting, confused, yes, and
+two-hand cheering clips were confirmed in the browser. The renderer script
+comes from Google's CDN, so 3D requires an internet connection; if rendering
+or the asset fails, the existing SVG remains visible. Reduced-motion settings
+pause animation. Buddy's shared policy now requests gentle bug-focused humor,
+calmer help when frustration is expressed, and technical accuracy. The
+separately supplied Buddy Master Script was not present in the workspace, so
+its full behavior is not claimed as implemented.
 
 The responsive layouts were checked in browser emulation at 320, 375, 390, 430,
 768, 1024, 1366, and 1920 CSS pixels. These checks are not physical-device
@@ -302,17 +394,18 @@ writers. This foundation is not a production-readiness claim.
   temporary databases.
 
 Learner-unlocking workflows, saved lesson progress, code execution, external AI
-integration, and games/progression are not implemented yet. Buddy's authenticated
-chat page and protected API use a deterministic local mock only.
+integration beyond the optional Gemini adapter, and games/progression are not
+implemented yet. Buddy's authenticated chat supports the deterministic local
+mock and explicitly configured Gemini mode.
 
 ## Buddy storage services
 
 The Buddy database foundation includes explicit-consent saved conversations,
 ordered messages, learner-approved memory items, and per-user privacy settings.
 Service functions enforce ownership, reject expired conversations for reads,
-and treat missing privacy settings as memory disabled. Buddy's provider
-contract currently has only a deterministic, local mock; the authenticated
-Buddy API is available, but no external provider is configured.
+and treat missing privacy settings as memory disabled. The default provider is
+the deterministic local mock; Gemini is opt-in, consent-gated, and disabled
+unless its server configuration is complete.
 
 The mock is for tests and development only. Its output is explicitly marked
 `MOCK ONLY`; it does not analyze or execute submitted code. The calling
@@ -343,21 +436,7 @@ emotion. The launcher and animations respect keyboard focus and reduced-motion
 settings. Replies remain deterministic local mock output; no external AI
 provider is connected.
 
-## Buddy provider configuration
-
-Buddy currently supports only the deterministic local mock. `BUDDY_PROVIDER`
-defaults to `mock`; setting it to any unsupported value causes application
-startup to fail rather than silently switching providers. The Buddy page
-labels replies as simulated and explains that messages are not sent to an AI
-provider. There is no real-provider adapter or supported AI API-key setting in
-this version. Do not add a provider credential expecting it to enable AI.
-
-A real provider still requires a separately approved provider, valid server-
-side credentials, billing authorization and limits, third-party data-use
-disclosure and learner consent, bounded network behavior, and provider-specific
-tests. No external provider is contacted by this application.
-
-## Buddy protected API (mock only)
+## Buddy protected API
 
 All routes below are authenticated, return JSON, and set `Cache-Control:
 no-store`. Unauthenticated requests receive HTTP 401; private resources owned
@@ -374,7 +453,8 @@ consent, a Buddy response uses only the current message and is not saved.
 
 | Method and route | Request JSON | Response JSON |
 | --- | --- | --- |
-| `GET /api/buddy/status` | — | `available`, `provider` (`name`, `is_mock`), `history` (`consent`, `consent_scope`), and `memory` (`enabled`, `consent_at`) |
+| `GET /api/buddy/status` | — | `available`, `provider` (`name`, `is_mock`, `mode`, safe `message`), `external_consent`, `history`, and `memory` |
+| `POST /api/buddy/external-consent` | `{"consent":true,"adult_confirmed":true}` or `{"consent":false}` | Session-scoped Google Gemini disclosure consent |
 | `POST /api/buddy/history-consent` | `{"consent": true}` or `{"consent": false}` | `history` (`consent`, `consent_scope`, `policy_version`) |
 | `POST /api/buddy/respond` | `{"message":"...", "conversation_id":"optional UUID", "language":"python"}`; `language` may be `javascript`, `c`, or `cpp` | `response` (`content`, `provider`, `is_mock`, `intent`, `teaching_approach`), `conversation` (metadata or `null`), and `saved` |
 | `GET /api/buddy/conversations` | — | `conversations`: the current learner's unexpired conversation metadata |

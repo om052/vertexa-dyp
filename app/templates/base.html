@@ -19,10 +19,11 @@
         </a>
         <nav class="main-nav" aria-label="Main navigation">
           <a class="{{ 'active' if page == 'home' else '' }}" href="{{ url_for('web.home') }}">Home</a>
+          {% if current_user %}<a class="{{ 'active' if page == 'workspace' else '' }}" href="{{ url_for('workspace_api.workspace') }}">Code workspace</a>{% endif %}
           <a class="{{ 'active' if page in ['learn', 'roadmap', 'topic', 'lesson'] else '' }}" href="{{ url_for('pages.learn') }}">Learn</a>
           {% if current_user %}<a class="{{ 'active' if page == 'buddy' else '' }}" href="{{ url_for('pages.buddy') }}">Buddy</a>{% endif %}
         </nav>
-        <a class="button button-small button-outline header-cta" href="{{ url_for('pages.learn') }}">Explore paths <span aria-hidden="true">↗</span></a>
+        <a class="button button-small button-outline header-cta" href="{{ url_for('workspace_api.workspace') if current_user else url_for('auth.register') }}">{{ 'Open editor' if current_user else 'Start coding' }} <span aria-hidden="true">↗</span></a>
         <nav class="account-nav" aria-label="Account navigation">
           {% if current_user %}
             <a href="{{ url_for('account.profile') }}">Profile</a>
@@ -40,6 +41,7 @@
           <summary class="mobile-menu-toggle"><span class="visually-hidden">Open site navigation</span><span aria-hidden="true">☰</span></summary>
           <nav class="mobile-menu-panel" aria-label="Mobile navigation">
             <a href="{{ url_for('web.home') }}">Home</a>
+            {% if current_user %}<a href="{{ url_for('workspace_api.workspace') }}">Code workspace</a>{% endif %}
             <a href="{{ url_for('pages.learn') }}">Learn</a>
             {% if current_user %}<a href="{{ url_for('pages.buddy') }}">Buddy</a>{% endif %}
             {% if current_user %}
@@ -87,11 +89,36 @@
           <div class="buddy-float-panel-heading">
             <div>
               <p class="buddy-float-kicker">YOUR CODING COMPANION</p>
-              <h2>Buddy <span class="buddy-mock-tag">MOCK</span></h2>
+              <h2>Buddy <span class="buddy-mock-tag">{{ 'GEMINI' if config['BUDDY_PROVIDER'] == 'gemini' else 'MOCK' }}</span></h2>
             </div>
             <a class="buddy-float-open" href="{{ url_for('pages.buddy') }}">Open chat</a>
           </div>
-          <p class="buddy-float-copy">Local simulated replies only — no AI provider is connected.</p>
+          <div class="buddy-float-model-stage" id="buddy-float-model-stage"
+               data-model-src="{{ url_for('static', filename='models/buddy/greetings.glb') }}">
+            <svg class="buddy-face buddy-float-model-fallback" viewBox="0 0 64 64" role="img" aria-label="Buddy, a friendly robot">
+              <path class="buddy-face-antenna" d="M32 9V5m-4 0h8" />
+              <rect class="buddy-face-shell" x="9" y="15" width="46" height="39" rx="15" />
+              <path class="buddy-face-ear" d="M9 29H5v12h4m46-12h4v12h-4" />
+              <path class="buddy-face-eye" d="M21 31v4m22-4v4" />
+              <path class="buddy-face-mouth buddy-mouth-idle" d="M23 43c5 5 13 5 18-1" />
+              <path class="buddy-face-mouth buddy-mouth-thinking" d="M24 44h16" />
+              <path class="buddy-face-mouth buddy-mouth-playful" d="M23 44c8 3 13 0 18-4" />
+              <path class="buddy-face-mouth buddy-mouth-encouraging" d="M22 41c5 7 15 7 20 0" />
+              <path class="buddy-face-mouth buddy-mouth-celebrating" d="M23 40c0 10 18 10 18 0c0-5-18-5-18 0" />
+              <circle class="buddy-face-cheek" cx="16" cy="40" r="2" />
+              <circle class="buddy-face-cheek" cx="48" cy="40" r="2" />
+            </svg>
+            <p class="buddy-float-model-status" id="buddy-float-model-status" role="status" aria-live="polite">
+              Open Buddy to load the optional 3D character
+            </p>
+          </div>
+          <p class="buddy-float-copy">
+            {% if config['BUDDY_PROVIDER'] == 'gemini' %}
+              Gemini is selected; provider availability and consent are handled in Buddy chat.
+            {% else %}
+              Local simulated replies only — no AI provider is connected.
+            {% endif %}
+          </p>
           <nav class="buddy-float-actions" aria-label="Ask Buddy">
             <a href="{{ url_for('pages.buddy', quick='hint') }}">Give me a hint</a>
             <a href="{{ url_for('pages.buddy', quick='explain') }}">Explain this</a>

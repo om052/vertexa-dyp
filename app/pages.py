@@ -1,4 +1,4 @@
-from flask import Blueprint, abort, render_template
+from flask import Blueprint, abort, current_app, render_template
 from sqlalchemy import select
 from app.auth import login_required
 from app.extensions import db
@@ -16,7 +16,11 @@ def learn():
 @pages.get("/buddy")
 @login_required
 def buddy():
-    return render_template("buddy.html", page="buddy")
+    return render_template(
+        "buddy.html",
+        page="buddy",
+        provider_mode=current_app.config["BUDDY_PROVIDER"],
+    )
 
 
 @pages.get("/learn/<language_code>")

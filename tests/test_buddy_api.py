@@ -17,11 +17,12 @@ from app.models import (
     User,
     utc_now,
 )
-from app.services.buddy_conversations import create_saved_conversation
+from app.services.buddy_conversations import append_exchange, create_saved_conversation
 from app.services.buddy_memory import set_memory_enabled
 from app.services.buddy_provider import (
     BuddyProviderRequest,
     BuddyProviderResponse,
+    GeminiProvider,
     ProviderUnavailable,
 )
 
@@ -90,6 +91,7 @@ class BuddyAPITests(unittest.TestCase):
         requests = (
             ("get", "/status", None),
             ("post", "/history-consent", {"consent": True}),
+            ("post", "/external-consent", {"consent": True}),
             ("post", "/respond", {"message": "Help me."}),
             ("get", "/conversations", None),
             ("get", "/privacy", None),
@@ -119,6 +121,8 @@ class BuddyAPITests(unittest.TestCase):
         response = self.api("get", "/status")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["provider"]["is_mock"], True)
+        self.assertEqual(response.get_json()["provider"]["mode"], "mock")
+        self.assertFalse(response.get_json()["external_consent"]["required"])
         self.assertFalse(response.get_json()["history"]["consent"])
         self.assertFalse(response.get_json()["memory"]["enabled"])
         self.assertEqual(response.headers["Cache-Control"], "no-store")
@@ -141,12 +145,111 @@ class BuddyAPITests(unittest.TestCase):
             response.get_json()["error"]["code"],
             "provider_unavailable",
         )
+
+    def test_gemini_requires_external_consent_and_sends_no_saved_context(self):
+        captured = []
+
+        class Models:
+            def generate_content(self, **kwargs):
+                captured.append(kwargs)
+                return type(
+                    "Response",
+                    (),
+                    {"text": "Let's trace the condition."},
+                )()
+
+        class Client:
+            models = Models()
+
+            def close(self):
+                pass
+
+        self.app.config.update(
+            BUDDY_PROVIDER="gemini",
+            BUDDY_GEMINI_RATE_LIMIT=20,
+            BUDDY_GEMINI_GLOBAL_RATE_LIMIT=100,
+        )
+        self.app.extensions["buddy_provider"] = GeminiProvider(
+            "test-key",
+            adult_audience_confirmed=True,
+            free_tier_confirmed=True,
+            client_factory=lambda **_: Client(),
+        )
+        status = self.api("get", "/status").get_json()
+        self.assertTrue(status["external_consent"]["required"])
+        self.assertFalse(status["external_consent"]["consent"])
+
+        blocked = self.post_json("/respond", {"message": "Explain a loop."})
+        self.assertEqual(blocked.status_code, 409)
+        self.assertEqual(
+            blocked.get_json()["error"]["code"],
+            "external_provider_consent_required",
+        )
+        self.assertEqual(captured, [])
+
         with self.app.app_context():
-            self.assertEqual(
+            conversation = create_saved_conversation(
+                self.user_ids[0],
+                history_consent=True,
+                policy_version="buddy-history-v1",
+            )
+            conversation_id = conversation.id
+            append_exchange(
+                self.user_ids[0],
+                conversation_id,
+                user_content="PRIVATE PREVIOUS HISTORY",
+                assistant_content="PRIVATE OLD ANSWER",
+            )
+
+        self.post_json("/history-consent", {"consent": True})
+        consent = self.post_json(
+            "/external-consent",
+            {"consent": True, "adult_confirmed": True},
+        )
+        self.assertEqual(consent.status_code, 200)
+        response = self.post_json(
+            "/respond",
+            {
+                "message": "Explain this loop.",
+                "conversation_id": conversation_id,
+                "language": "python",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["response"]["provider"], "google-gemini")
+        self.assertFalse(payload["response"]["is_mock"])
+        self.assertEqual(len(captured), 1)
+        submitted_text = captured[0]["contents"]
+        self.assertIn("Explain this loop.", submitted_text)
+        self.assertNotIn("PRIVATE PREVIOUS HISTORY", submitted_text)
+        self.assertNotIn("PRIVATE OLD ANSWER", submitted_text)
+        self.assertNotIn(self.user_ids[0], submitted_text)
+        with self.app.app_context():
+            saved_counts = (
                 db.session.scalar(
                     select(func.count()).select_from(BuddyConversation)
                 ),
-                0,
+                db.session.scalar(
+                    select(func.count()).select_from(BuddyMessage)
+                ),
+            )
+
+        self.post_json("/external-consent", {"consent": False})
+        revoked = self.post_json("/respond", {"message": "Another question."})
+        self.assertEqual(revoked.status_code, 409)
+        self.assertEqual(len(captured), 1)
+        with self.app.app_context():
+            self.assertEqual(
+                saved_counts,
+                (
+                    db.session.scalar(
+                        select(func.count()).select_from(BuddyConversation)
+                    ),
+                    db.session.scalar(
+                        select(func.count()).select_from(BuddyMessage)
+                    ),
+                ),
             )
 
     def test_unexpected_mock_response_is_rejected_before_saving(self):

@@ -6,6 +6,16 @@ from datetime import timedelta
 from sqlalchemy.engine import URL
 
 
+def _environment_bool(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    normalized = value.strip().lower()
+    if normalized not in {"true", "false"}:
+        raise RuntimeError(f"{name} must be set to true or false.")
+    return normalized == "true"
+
+
 def load_config(instance_path: str) -> dict:
     environment = os.environ.get("CODEQUEST_ENV", "development").strip().lower()
     buddy_provider = os.environ.get("BUDDY_PROVIDER", "mock").strip().lower()
@@ -19,6 +29,12 @@ def load_config(instance_path: str) -> dict:
         or (None if environment == "production" else secrets.token_hex(32)),
         "DATABASE_PATH": database_path,
         "BUDDY_PROVIDER": buddy_provider,
+        "BUDDY_GEMINI_ADULTS_ONLY": _environment_bool(
+            "BUDDY_GEMINI_ADULTS_ONLY"
+        ),
+        "BUDDY_GEMINI_FREE_TIER_CONFIRMED": _environment_bool(
+            "BUDDY_GEMINI_FREE_TIER_CONFIRMED"
+        ),
         "SESSION_COOKIE_HTTPONLY": True,
         "SESSION_COOKIE_SAMESITE": "Lax",
         "SESSION_COOKIE_SECURE": environment == "production",
@@ -27,10 +43,9 @@ def load_config(instance_path: str) -> dict:
 
 
 def validate_config(config: dict) -> None:
-    if config.get("BUDDY_PROVIDER") != "mock":
+    if config.get("BUDDY_PROVIDER") not in {"mock", "gemini"}:
         raise RuntimeError(
-            "BUDDY_PROVIDER currently supports only 'mock'. "
-            "No real AI provider is configured."
+            "BUDDY_PROVIDER must be set to 'mock' or 'gemini'."
         )
 
     if config["ENVIRONMENT"] == "production" and not config["SECRET_KEY"]:

@@ -89,14 +89,52 @@ class LearningPagesTests(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
 
         script = client.get("/static/js/buddy.js")
+        renderer_script = client.get("/static/js/buddy-3d.js")
         styles = client.get("/static/css/styles.css")
         self.assertEqual(script.status_code, 200)
         self.assertIn(b"submitMessage", script.data)
         self.assertNotIn(b"innerHTML", script.data)
+        self.assertEqual(renderer_script.status_code, 200)
+        self.assertIn(b"Cheering_Two_Hands", renderer_script.data)
+        self.assertIn(b"prefers-reduced-motion", renderer_script.data)
         self.assertEqual(styles.status_code, 200)
         self.assertIn(b"@media (max-width: 375px)", styles.data)
+        self.assertIn(b".buddy-model-fallback", styles.data)
+        self.assertIn(b'id="buddy-model-viewer"', page.data)
+        self.assertIn(b"/static/models/buddy/greetings.glb", page.data)
+        self.assertIn(b'id="buddy-model-fallback"', page.data)
         script.close()
+        renderer_script.close()
         styles.close()
+
+    def test_authenticated_homepage_loads_buddy_launcher(self):
+        with self.app.app_context():
+            user = User()
+            db.session.add(user)
+            db.session.commit()
+            user_id = user.id
+
+        client = self.app.test_client()
+        with client.session_transaction() as state:
+            state["user_id"] = user_id
+
+        response = client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'id="buddy-float-launcher"', response.data)
+        self.assertIn(b'/static/js/buddy-widget.js', response.data)
+        self.assertIn(b'id="buddy-float-model-stage"', response.data)
+        self.assertIn(b'data-model-src="/static/models/buddy/greetings.glb"', response.data)
+        self.assertIn(b'Open Buddy to load the optional 3D character', response.data)
+        self.assertIn(b'Buddy <span class="buddy-mock-tag">MOCK</span>', response.data)
+        self.assertNotIn(b'{% extends', response.data)
+
+        script = client.get("/static/js/buddy-widget.js")
+        self.assertEqual(script.status_code, 200)
+        self.assertIn(b'launcher.addEventListener("click"', script.data)
+        self.assertIn(b'ajax.googleapis.com/ajax/libs/model-viewer/4.1.0', script.data)
+        self.assertIn(b'modelStatus.textContent', script.data)
+        self.assertIn(b'"Confused"', script.data)
+        script.close()
 
     def test_learning_pages_render_for_seeded_catalog_items(self):
         self.seed()

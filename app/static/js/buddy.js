@@ -29,6 +29,12 @@
   const memoryContent = document.getElementById("buddy-memory-content");
   const memoryApproval = document.getElementById("buddy-memory-approval");
   const memoryCancel = document.getElementById("buddy-memory-cancel");
+  const providerLabel = document.getElementById("buddy-provider-label-text");
+  const externalConsentPanel = document.getElementById("buddy-external-consent");
+  const externalAdultConfirm = document.getElementById("buddy-gemini-adult-confirm");
+  const externalConsentButton = document.getElementById("buddy-gemini-consent");
+  const externalRevokeButton = document.getElementById("buddy-gemini-revoke");
+  const externalConsentStatus = document.getElementById("buddy-gemini-consent-status");
   const quickActions = {
     hint: "Give me one small hint for the coding problem I'm working on without giving away the full solution.",
     explain: "Please explain the coding concept or snippet I'm working on. Ask me to share it if you need more context.",
@@ -44,6 +50,9 @@
     editingMemoryId: null,
     busy: false,
     ready: false,
+    providerMode: "mock",
+    providerAvailable: false,
+    externalConsent: false,
     expressionResetTimer: null,
   };
 
@@ -59,10 +68,19 @@
       window.clearTimeout(state.expressionResetTimer);
       state.expressionResetTimer = null;
     }
-    const allowed = ["idle", "thinking", "playful", "encouraging", "celebrating"];
+    const allowed = [
+      "idle",
+      "thinking",
+      "playful",
+      "explaining",
+      "debugging",
+      "confused",
+      "encouraging",
+    ];
     const value = allowed.includes(expression) ? expression : "idle";
     document.documentElement.dataset.buddyExpression = value;
     window.setBuddyExpression?.(value);
+    window.setBuddyModelExpression?.(value);
   }
 
   function errorMessage(status, serverMessage) {
@@ -70,7 +88,14 @@
     if (status === 400) return "Please check your request and approval choices, then try again.";
     if (status === 404) return "That saved conversation or memory is no longer available.";
     if (status === 413) return "That request is too large. Shorten it and try again.";
-    if (status === 429) return "Buddy is receiving requests too quickly. Wait a moment before trying again.";
+    if (status === 409 && serverMessage) return serverMessage;
+    if (status === 429) return state.providerMode === "gemini"
+      ? "Gemini's quota or request limit was reached. No mock fallback was used."
+      : "Buddy is receiving requests too quickly. Wait a moment before trying again.";
+    if (status === 503) return state.providerMode === "gemini"
+      ? "Gemini is unavailable. Verify server configuration, credentials, model access, and free-tier eligibility."
+      : "Buddy is temporarily unavailable. Please try again.";
+    if (status === 504) return "Gemini did not respond in time. No mock fallback was used.";
     if (status >= 500) return "Buddy could not complete that request. Check saved history before resending.";
     return serverMessage || "Buddy could not complete that request.";
   }
@@ -134,7 +159,11 @@
       "buddy-message-author",
       assistant ? "Buddy" : "You",
     );
-    if (assistant) author.append(element("span", "", "MOCK"));
+    if (assistant) {
+      author.append(
+        element("span", "", state.providerMode === "gemini" ? "GEMINI · GOOGLE" : "MOCK"),
+      );
+    }
     body.append(author);
     const blocks = String(content).split(/```(?:[a-zA-Z0-9_+-]+)?\r?\n([\s\S]*?)```/g);
     for (let index = 0; index < blocks.length; index += 1) {
@@ -258,9 +287,12 @@
 
   function setBusy(busy) {
     state.busy = busy;
-    messageInput.disabled = busy;
+    messageInput.disabled = busy || !state.ready;
     languageSelect.disabled = busy;
-    sendButton.disabled = busy;
+    sendButton.disabled = busy || !state.ready;
+    document.querySelectorAll("[data-buddy-quick]").forEach((button) => {
+      button.disabled = busy || !state.ready;
+    });
     document.querySelectorAll("[data-buddy-quick]").forEach((button) => {
       button.disabled = busy || !state.ready;
     });
@@ -269,13 +301,19 @@
   }
 
   async function sendMessage(message) {
-    return submitMessage(message, false);
+    if (!state.ready) return;
+    const expression = /\b(debug|debugging|bug|error|traceback|not working)\b/i.test(message)
+      ? "debugging"
+      : /\b(explain|explanation|why does|how does)\b/i.test(message)
+        ? "explaining"
+        : "thinking";
+    return submitMessage(message, false, expression);
   }
 
-  async function submitMessage(message, retry) {
-    if (state.busy) return;
+  async function submitMessage(message, retry, expression = "thinking") {
+    if (state.busy || !state.ready) return;
     setBusy(true);
-    setBuddyExpression("thinking");
+    setBuddyExpression(expression);
     composeError.hidden = true;
     composeError.replaceChildren();
     if (!retry) appendMessage("user", message);
@@ -286,17 +324,24 @@
       }
       if (languageSelect.value) payload.language = languageSelect.value;
       const result = await api("/respond", { method: "POST", body: payload });
-      if (result.response.is_mock !== true) {
-        throw new Error("Buddy returned a response that could not be verified as mock output.");
+      const expectedMock = state.providerMode === "mock";
+      const expectedProvider = expectedMock
+        ? "deterministic-local-mock"
+        : "google-gemini";
+      if (
+        result.response.is_mock !== expectedMock ||
+        result.response.provider !== expectedProvider
+      ) {
+        throw new Error("Buddy returned a response that did not match the selected provider.");
       }
       if (typeof result.response.content !== "string" || !result.response.content) {
         throw new Error("Buddy returned an invalid response.");
       }
       appendMessage("assistant", result.response.content);
-      setBuddyExpression("celebrating");
+      setBuddyExpression("encouraging");
       state.expressionResetTimer = window.setTimeout(
         () => setBuddyExpression("idle"),
-        2200,
+        1800,
       );
       if (result.saved && result.conversation?.id) {
         state.selectedConversationId = result.conversation.id;
@@ -304,7 +349,7 @@
       }
       messageInput.value = "";
     } catch (error) {
-      setBuddyExpression("encouraging");
+      setBuddyExpression("confused");
       showInlineError(
         composeError,
         `${error.message} A send request may already have been processed; it was not retried automatically.`,
@@ -319,7 +364,7 @@
         if (window.confirm(
           "The request may already have been processed. Resending can create a duplicate saved exchange. Continue?",
         )) {
-          submitMessage(message, true);
+          submitMessage(message, true, expression);
         }
       });
       composeError.append(retryButton);
@@ -523,24 +568,77 @@
     }
   }
 
+  function updateExternalConsentControls() {
+    if (!externalConsentPanel) return;
+    externalConsentPanel.hidden = state.providerMode !== "gemini";
+    if (state.providerMode !== "gemini") return;
+
+    const consentLabel = externalAdultConfirm.closest("label");
+    consentLabel.hidden = state.externalConsent;
+    externalAdultConfirm.checked = false;
+    externalAdultConfirm.disabled = !state.providerAvailable || state.externalConsent;
+    externalConsentButton.hidden = state.externalConsent;
+    externalConsentButton.disabled = !state.providerAvailable;
+    externalRevokeButton.hidden = !state.externalConsent;
+    externalRevokeButton.disabled = false;
+
+    if (!state.providerAvailable) {
+      externalConsentStatus.textContent = state.providerMessage ||
+        "Gemini is not configured. No messages will be sent.";
+    } else if (state.externalConsent) {
+      externalConsentStatus.textContent =
+        "Gemini consent is enabled for this signed-in session. Saved history and memory are not sent to Google.";
+    } else {
+      externalConsentStatus.textContent =
+        "Review the disclosure, confirm you are 18 or older, and consent before sending a message.";
+    }
+  }
+
+  async function changeExternalConsent(consent) {
+    if (!externalConsentStatus || !state.providerAvailable) return;
+    externalConsentButton.disabled = true;
+    externalRevokeButton.disabled = true;
+    try {
+      await api("/external-consent", {
+        method: "POST",
+        body: {
+          consent,
+          ...(consent ? { adult_confirmed: true } : {}),
+        },
+      });
+      state.externalConsent = consent;
+      state.ready = state.providerAvailable && (consent || state.providerMode !== "gemini");
+      updateExternalConsentControls();
+      setBusy(false);
+      if (consent) messageInput.focus();
+    } catch (error) {
+      externalConsentStatus.textContent = error.message;
+    } finally {
+      externalConsentButton.disabled = false;
+      externalRevokeButton.disabled = false;
+    }
+  }
+
   async function initialize() {
     try {
       const status = await api("/status");
+      state.providerMode = status.provider.mode;
+      state.providerAvailable = status.available === true;
+      state.providerMessage = status.provider.message || "";
+      state.externalConsent = status.external_consent.consent === true;
+      providerLabel.textContent = state.providerMode === "gemini"
+        ? "Google Gemini · external service · no code execution"
+        : "Local mock · no code execution";
+      updateExternalConsentControls();
       state.historyConsent = status.history.consent;
-      messageInput.disabled = false;
-      sendButton.disabled = false;
       historyEnable.disabled = false;
       historyDecline.disabled = false;
       updateConsentControls();
       await loadConversations();
       await loadMemory();
-      if (!status.provider.is_mock) {
-        throw new Error("The configured Buddy response mode could not be verified.");
-      }
-      state.ready = true;
-      document.querySelectorAll("[data-buddy-quick]").forEach((button) => {
-        button.disabled = false;
-      });
+      state.ready = state.providerAvailable &&
+        (state.providerMode !== "gemini" || state.externalConsent);
+      setBusy(false);
       const params = new URLSearchParams(window.location.search);
       const quickAction = params.get("quick");
       if (quickAction && Object.prototype.hasOwnProperty.call(quickActions, quickAction)) {
@@ -549,6 +647,8 @@
         await sendMessage(quickActions[quickAction]);
       }
     } catch (error) {
+      state.ready = false;
+      setBusy(false);
       showInlineError(composeError, error.message);
       memoryStatus.textContent = "Privacy settings could not be loaded. Please refresh and try again.";
     }
@@ -581,6 +681,12 @@
   memoryAdd.addEventListener("click", openMemoryCreate);
   memoryCancel.addEventListener("click", closeMemoryEditor);
   memoryEditor.addEventListener("submit", saveMemory);
+  externalAdultConfirm?.addEventListener("change", () => {
+    externalConsentButton.disabled =
+      !state.providerAvailable || !externalAdultConfirm.checked;
+  });
+  externalConsentButton?.addEventListener("click", () => changeExternalConsent(true));
+  externalRevokeButton?.addEventListener("click", () => changeExternalConsent(false));
   document.querySelectorAll("[data-buddy-quick]").forEach((button) => {
     button.addEventListener("click", () => {
       const message = quickActions[button.dataset.buddyQuick];

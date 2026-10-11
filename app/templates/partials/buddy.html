@@ -2,7 +2,17 @@
   <div class="buddy-avatar" aria-hidden="true">B</div>
   <div>
     <p class="buddy-title">Meet Buddy</p>
-    <p class="buddy-copy">Explore coding questions with a clearly labeled local mock mentor.</p>
+    <p class="buddy-copy">
+      {% if current_user %}
+        {% if config['BUDDY_PROVIDER'] == 'gemini' %}
+          Gemini is selected; review availability and consent in Buddy chat.
+        {% else %}
+          Ask questions with Buddy's clearly labeled local mock responses.
+        {% endif %}
+      {% else %}
+        Sign in to meet Buddy and see the current response mode.
+      {% endif %}
+    </p>
   </div>
   {% if current_user %}
     <a class="status-pill buddy-launch-link" href="{{ url_for('pages.buddy') }}">Open mentor <span aria-hidden="true">↗</span></a>

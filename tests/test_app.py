@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from app import create_app
 from app.extensions import db
+from app.services.buddy_provider import GeminiProvider
 
 
 class AppTests(unittest.TestCase):
@@ -51,16 +52,51 @@ class AppTests(unittest.TestCase):
             "deterministic-local-mock",
         )
 
+    def test_gemini_provider_is_selected_only_when_explicitly_configured(self):
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}):
+            app = create_app(
+                {
+                    "TESTING": True,
+                    "DATABASE_PATH": str(self.database_path),
+                    "BUDDY_PROVIDER": "gemini",
+                    "BUDDY_GEMINI_ADULTS_ONLY": True,
+                    "BUDDY_GEMINI_FREE_TIER_CONFIRMED": True,
+                }
+            )
+        self.assertIsInstance(app.extensions["buddy_provider"], GeminiProvider)
+        self.assertTrue(app.extensions["buddy_provider"].is_available)
+        self.assertNotIn("GEMINI_API_KEY", app.config)
+        with app.app_context():
+            db.engine.dispose()
+
+    def test_gemini_without_key_starts_unavailable_without_fallback(self):
+        with patch.dict(os.environ, {}, clear=True):
+            app = create_app(
+                {
+                    "TESTING": True,
+                    "DATABASE_PATH": str(self.database_path),
+                    "BUDDY_PROVIDER": "gemini",
+                    "BUDDY_GEMINI_ADULTS_ONLY": True,
+                    "BUDDY_GEMINI_FREE_TIER_CONFIRMED": True,
+                }
+            )
+        provider = app.extensions["buddy_provider"]
+        self.assertIsInstance(provider, GeminiProvider)
+        self.assertFalse(provider.is_available)
+        self.assertFalse(provider.is_mock)
+        with app.app_context():
+            db.engine.dispose()
+
     def test_startup_rejects_unsupported_buddy_provider(self):
         with self.assertRaisesRegex(
             RuntimeError,
-            "BUDDY_PROVIDER currently supports only 'mock'",
+            "BUDDY_PROVIDER must be set to 'mock' or 'gemini'",
         ):
             create_app(
                 {
                     "TESTING": True,
                     "DATABASE_PATH": str(self.database_path),
-                    "BUDDY_PROVIDER": "anthropic",
+                    "BUDDY_PROVIDER": "unsupported",
                 }
             )
 

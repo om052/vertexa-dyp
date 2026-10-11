@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Code Workspace — CodeQuest AI{% endblock %}
+{% block content %}
+<section class="coding-workspace" id="coding-workspace" data-csrf-token="{{ csrf_token() }}">
+  <header class="workspace-header">
+    <div>
+      <p class="eyebrow"><span class="eyebrow-line"></span> CODEQUEST WORKSPACE</p>
+      <h1>Make the bug <span class="text-gradient">blink first.</span></h1>
+      <p>Write code, inspect real Python syntax diagnostics, and ask Buddy to reason about the code you choose to share.</p>
+    </div>
+    <span class="runner-status"><span aria-hidden="true">●</span> Secure runner unavailable</span>
+  </header>
+
+  <div class="workspace-grid">
+    <aside class="mission-panel" aria-labelledby="mission-title">
+      <div class="mission-kicker"><span>DEBUGGING MISSION 01</span><span class="mission-xp">+25 XP</span></div>
+      <h2 id="mission-title">Average, not error</h2>
+      <p class="mission-story">This function is trying to average a list. The parser accepts it, but a loop value is a number, not the list.</p>
+      <pre class="mission-error"><code>Expected if run: TypeError: object of type 'int' has no len()</code></pre>
+      <p class="mission-note">Expected from the broken denominator; the workspace did not run this code. Find the wrong name before the division.</p>
+      <button class="button button-outline mission-load" id="mission-load" type="button">Load broken code</button>
+      <button class="button button-primary mission-verify" id="mission-verify" type="button">Verify mission</button>
+      <p class="mission-result" id="mission-result" role="status" aria-live="polite">XP is awarded once, after the mission verifier confirms the fix.</p>
+      <p class="mission-total" id="mission-total">Verified mission XP: 0</p>
+    </aside>
+
+    <section class="editor-panel" aria-label="Code editor">
+      <div class="editor-toolbar">
+        <label for="workspace-language">Language
+          <select id="workspace-language">
+            <option value="python">Python</option>
+            <option value="javascript">JavaScript</option>
+            <option value="c">C</option>
+            <option value="cpp">C++</option>
+          </select>
+        </label>
+        <span class="editor-filename" id="editor-filename">scratch.py</span>
+        <div class="editor-actions" role="group" aria-label="Editor actions">
+          <button class="button button-outline button-small" id="load-sample" type="button">Sample</button>
+          <button class="button button-outline button-small" id="reset-code" type="button">Reset</button>
+          <button class="button button-primary button-small" id="check-syntax" type="button">Check syntax</button>
+          <button class="button button-outline button-small" id="run-code" type="button" title="No isolated runner is configured">Run</button>
+        </div>
+      </div>
+      <div class="editor-shell">
+        <textarea id="workspace-code" aria-label="Source code editor" spellcheck="false">def greet(name):
+    print(f"Hello, {name}!")
+
+greet("world")</textarea>
+      </div>
+      <p class="editor-status" id="editor-status" role="status" aria-live="polite">Loading syntax highlighting…</p>
+
+      <section class="output-panel" aria-labelledby="output-title">
+        <div class="output-heading">
+          <h2 id="output-title">Diagnostics &amp; output</h2>
+          <span>NO CODE EXECUTION</span>
+        </div>
+        <pre id="workspace-output" role="status" aria-live="polite">Execution unavailable: no isolated code runner is configured. No program has run.</pre>
+        <div class="diagnostic-detail" id="diagnostic-detail" hidden></div>
+      </section>
+
+      <section class="workspace-buddy" aria-labelledby="workspace-buddy-title">
+        <div class="workspace-buddy-heading">
+          <div><p class="eyebrow">CONTEXTUAL HELP</p><h2 id="workspace-buddy-title">Ask Buddy about this code</h2></div>
+          <span class="provider-state">{{ 'GEMINI · CONSENT REQUIRED' if config['BUDDY_PROVIDER'] == 'gemini' else 'MOCK MODE' }}</span>
+        </div>
+        <p>Only a button click sends your selected language, code (with obvious secret values redacted), and the latest syntax diagnostic. No editor content or output is sent automatically.</p>
+        <div class="workspace-buddy-actions" role="group" aria-label="Buddy coding help">
+          <button class="button button-outline button-small" type="button" data-buddy-action="explain">Explain Error</button>
+          <button class="button button-outline button-small" type="button" data-buddy-action="hint">Give Me a Hint</button>
+          <button class="button button-outline button-small" type="button" data-buddy-action="debug">Debug This Code</button>
+        </div>
+        <p class="buddy-response" id="workspace-buddy-response" role="status" aria-live="polite" hidden></p>
+      </section>
+    </section>
+  </div>
+</section>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
+<script defer src="{{ url_for('static', filename='js/workspace.js') }}"></script>
+{% endblock %}

@@ -1,5 +1,6 @@
 """Authenticated JSON API for Buddy's local mock and privacy controls."""
 
+import os
 import threading
 import time
 from collections import deque
@@ -16,6 +17,7 @@ from app.services.buddy_common import (
     BuddyResourceNotFound,
     ConfirmationRequired,
     ConsentRequired,
+    ExternalProviderConsentRequired,
     InvalidBuddyInput,
     LearnerApprovalRequired,
     MemoryDisabled,
@@ -48,8 +50,10 @@ from app.services.buddy_provider import (
     MAX_MEMORY_ITEMS,
     BuddyContextMessage,
     DeterministicMockProvider,
+    GeminiProvider,
     InvalidProviderInput,
     MalformedProviderResponse,
+    ProviderRateLimited,
     ProviderTimeout,
     ProviderUnavailable,
     SUPPORTED_LANGUAGES,
@@ -61,10 +65,15 @@ buddy_api = Blueprint("buddy_api", __name__, url_prefix="/api/buddy")
 HISTORY_CONSENT_KEY = "buddy_history_consent"
 HISTORY_POLICY_VERSION_KEY = "buddy_history_policy_version"
 HISTORY_POLICY_VERSION = "buddy-history-v1"
+EXTERNAL_CONSENT_KEY = "buddy_gemini_external_consent"
+EXTERNAL_CONSENT_POLICY_VERSION_KEY = "buddy_gemini_external_consent_version"
+EXTERNAL_CONSENT_POLICY_VERSION = "buddy-gemini-google-unpaid-v1"
 MEMORY_POLICY_VERSION = "buddy-memory-v1"
 MAX_REQUEST_BYTES = 64 * 1024
 DEFAULT_RATE_LIMIT = 30
 DEFAULT_RATE_WINDOW_SECONDS = 60
+GEMINI_RATE_LIMIT = 5
+GEMINI_GLOBAL_RATE_LIMIT = 20
 
 
 class BuddyRequestLimiter:
@@ -101,7 +110,19 @@ class BuddyRequestLimiter:
 
 
 def init_buddy_api(app) -> None:
-    app.extensions["buddy_provider"] = DeterministicMockProvider()
+    if app.config["BUDDY_PROVIDER"] == "gemini":
+        provider = GeminiProvider(
+            os.environ.get("GEMINI_API_KEY"),
+            adult_audience_confirmed=app.config.get(
+                "BUDDY_GEMINI_ADULTS_ONLY"
+            ),
+            free_tier_confirmed=app.config.get(
+                "BUDDY_GEMINI_FREE_TIER_CONFIRMED"
+            ),
+        )
+    else:
+        provider = DeterministicMockProvider()
+    app.extensions["buddy_provider"] = provider
     app.extensions["buddy_request_limiter"] = BuddyRequestLimiter()
     if app.config.get("MAX_CONTENT_LENGTH") is None:
         app.config["MAX_CONTENT_LENGTH"] = MAX_REQUEST_BYTES
@@ -109,6 +130,11 @@ def init_buddy_api(app) -> None:
     app.config.setdefault(
         "BUDDY_RATE_WINDOW_SECONDS",
         DEFAULT_RATE_WINDOW_SECONDS,
+    )
+    app.config.setdefault("BUDDY_GEMINI_RATE_LIMIT", GEMINI_RATE_LIMIT)
+    app.config.setdefault(
+        "BUDDY_GEMINI_GLOBAL_RATE_LIMIT",
+        GEMINI_GLOBAL_RATE_LIMIT,
     )
     app.register_blueprint(buddy_api)
 
@@ -212,6 +238,15 @@ def _history_is_enabled() -> bool:
     )
 
 
+def _external_provider_consent_is_enabled() -> bool:
+    return (
+        session.get(EXTERNAL_CONSENT_KEY) is True
+        and session.get(EXTERNAL_CONSENT_POLICY_VERSION_KEY)
+        == EXTERNAL_CONSENT_POLICY_VERSION
+        and session.get("buddy_gemini_adult_confirmed") is True
+    )
+
+
 def _configured_mock_provider() -> DeterministicMockProvider | None:
     provider = current_app.extensions.get("buddy_provider")
     if (
@@ -221,6 +256,19 @@ def _configured_mock_provider() -> DeterministicMockProvider | None:
     ):
         return None
     return provider
+
+
+def _configured_provider():
+    provider = current_app.extensions.get("buddy_provider")
+    if current_app.config["BUDDY_PROVIDER"] == "mock":
+        return _configured_mock_provider()
+    if (
+        current_app.config["BUDDY_PROVIDER"] == "gemini"
+        and isinstance(provider, GeminiProvider)
+        and provider.is_mock is False
+    ):
+        return provider
+    return None
 
 
 @buddy_api.before_request
@@ -248,6 +296,30 @@ def require_authenticated_json_user():
         )
         response.headers["Retry-After"] = str(retry_after)
         return response
+    if (
+        current_app.config["BUDDY_PROVIDER"] == "gemini"
+        and request.endpoint == "buddy_api.respond_to_learner"
+    ):
+        limiter = current_app.extensions["buddy_request_limiter"]
+        retry_after = limiter.consume(
+            f"gemini-user:{g.current_user.id}",
+            limit=current_app.config["BUDDY_GEMINI_RATE_LIMIT"],
+            window_seconds=window,
+        )
+        if retry_after is None:
+            retry_after = limiter.consume(
+                "gemini-global",
+                limit=current_app.config["BUDDY_GEMINI_GLOBAL_RATE_LIMIT"],
+                window_seconds=window,
+            )
+        if retry_after is not None:
+            response = _error(
+                "rate_limited",
+                "Gemini request limit reached. Wait before trying again.",
+                429,
+            )
+            response.headers["Retry-After"] = str(retry_after)
+            return response
     return None
 
 
@@ -294,6 +366,26 @@ def consent_required(exception):
         "history_consent_required",
         "Opt in to saved history before saving a Buddy conversation.",
         409,
+    )
+
+
+@buddy_api.errorhandler(ExternalProviderConsentRequired)
+def external_provider_consent_required(exception):
+    del exception
+    return _error(
+        "external_provider_consent_required",
+        "Review Google's Gemini data-use notice and explicitly consent before sending a message.",
+        409,
+    )
+
+
+@buddy_api.errorhandler(ProviderRateLimited)
+def provider_rate_limited(exception):
+    del exception
+    return _error(
+        "provider_rate_limited",
+        "Gemini's quota or rate limit was reached. No mock fallback was used.",
+        429,
     )
 
 
@@ -414,12 +506,28 @@ def buddy_status():
     provider = current_app.extensions.get("buddy_provider")
     provider_name = getattr(provider, "provider_name", None)
     provider_is_mock = getattr(provider, "is_mock", None)
-    mock_available = _configured_mock_provider() is not None
+    provider_available = (
+        _configured_provider() is not None
+        and getattr(_configured_provider(), "is_available", True) is True
+    )
+    provider_mode = current_app.config["BUDDY_PROVIDER"]
+    availability_message = getattr(provider, "availability_message", "")
     return jsonify(
-        available=mock_available,
+        available=provider_available,
         provider={
             "name": provider_name if isinstance(provider_name, str) else None,
             "is_mock": provider_is_mock is True,
+            "mode": provider_mode,
+            "message": availability_message,
+        },
+        external_consent={
+            "required": provider_mode == "gemini",
+            "consent": (
+                _external_provider_consent_is_enabled()
+                if provider_mode == "gemini"
+                else False
+            ),
+            "consent_scope": "authenticated_session",
         },
         history={
             "consent": _history_is_enabled(),
@@ -433,6 +541,47 @@ def buddy_status():
                 else None
             ),
         },
+    )
+
+
+@buddy_api.post("/external-consent")
+def update_external_provider_consent():
+    payload = _json_body({"consent", "adult_confirmed"})
+    consent = payload.get("consent")
+    if not isinstance(consent, bool):
+        raise InvalidBuddyInput("External provider consent must be a boolean.")
+    if current_app.config["BUDDY_PROVIDER"] != "gemini":
+        raise InvalidBuddyInput(
+            "External provider consent is only available in Gemini mode."
+        )
+    if consent:
+        provider = _configured_provider()
+        if provider is None or not provider.is_available:
+            raise ProviderUnavailable(
+                getattr(provider, "availability_message", "")
+                or "Gemini is not available."
+            )
+        if payload.get("adult_confirmed") is not True:
+            raise InvalidBuddyInput(
+                "An adult-only eligibility confirmation is required."
+            )
+        session[EXTERNAL_CONSENT_KEY] = True
+        session[EXTERNAL_CONSENT_POLICY_VERSION_KEY] = (
+            EXTERNAL_CONSENT_POLICY_VERSION
+        )
+        session["buddy_gemini_adult_confirmed"] = True
+    else:
+        session.pop(EXTERNAL_CONSENT_KEY, None)
+        session.pop(EXTERNAL_CONSENT_POLICY_VERSION_KEY, None)
+        session.pop("buddy_gemini_adult_confirmed", None)
+    return jsonify(
+        external_consent={
+            "consent": consent,
+            "consent_scope": "authenticated_session",
+            "policy_version": (
+                EXTERNAL_CONSENT_POLICY_VERSION if consent else None
+            ),
+        }
     )
 
 
@@ -490,11 +639,15 @@ def _approved_memories(user_id: str) -> tuple[str, ...]:
 
 @buddy_api.post("/respond")
 def respond_to_learner():
-    provider = _configured_mock_provider()
+    provider = _configured_provider()
     if provider is None:
-        raise ProviderUnavailable("The configured Buddy provider is not the local mock.")
+        raise ProviderUnavailable("The selected Buddy provider is unavailable.")
+    if not getattr(provider, "is_available", True):
+        raise ProviderUnavailable(provider.availability_message)
 
-    payload = _json_body({"message", "conversation_id", "language"})
+    payload = _json_body(
+        {"message", "conversation_id", "language", "workspace_context"}
+    )
     learner_message = _required_string(
         payload,
         "message",
@@ -510,31 +663,56 @@ def respond_to_learner():
         not isinstance(language, str) or language not in SUPPORTED_LANGUAGES
     ):
         raise InvalidBuddyInput("Unsupported programming language.")
+    workspace_context = payload.get("workspace_context", False)
+    if not isinstance(workspace_context, bool):
+        raise InvalidBuddyInput("Workspace context must be a boolean.")
+    if workspace_context and conversation_id is not None:
+        raise InvalidBuddyInput(
+            "Workspace requests cannot include saved conversation context."
+        )
 
     history_enabled = _history_is_enabled()
+    gemini_mode = current_app.config["BUDDY_PROVIDER"] == "gemini"
+    if gemini_mode and not _external_provider_consent_is_enabled():
+        raise ExternalProviderConsentRequired()
     if conversation_id is not None and not history_enabled:
         raise ConsentRequired("Saved history consent is required.")
 
     context: tuple[BuddyContextMessage, ...] = ()
     if conversation_id is not None:
         saved_messages = get_saved_messages(g.current_user.id, conversation_id)
-        context = _build_context(saved_messages)
+        if not gemini_mode:
+            context = _build_context(saved_messages)
 
     provider_request, decision = prepare_buddy_request(
         learner_message,
         context=context,
-        approved_memories=_approved_memories(g.current_user.id),
-        memory_enabled=is_memory_enabled(g.current_user.id),
+        approved_memories=(
+            ()
+            if gemini_mode or workspace_context
+            else _approved_memories(g.current_user.id)
+        ),
+        memory_enabled=(
+            False
+            if gemini_mode or workspace_context
+            else is_memory_enabled(g.current_user.id)
+        ),
         programming_language=language,
     )
     result = generate_response(
         provider,
         provider_request,
     )
+    expected_mock = current_app.config["BUDDY_PROVIDER"] == "mock"
+    expected_provider_name = (
+        DeterministicMockProvider.provider_name
+        if expected_mock
+        else GeminiProvider.provider_name
+    )
     if (
-        result.provider_name != DeterministicMockProvider.provider_name
-        or result.is_mock is not True
-        or not result.content.startswith("MOCK ONLY:")
+        result.provider_name != expected_provider_name
+        or result.is_mock is not expected_mock
+        or (expected_mock and not result.content.startswith("MOCK ONLY:"))
     ):
         raise MalformedProviderResponse(
             "The configured mock provider returned an unexpected response."

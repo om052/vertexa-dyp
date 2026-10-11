@@ -11,6 +11,10 @@ class ConsentRequired(BuddyServiceError):
     """Raised when an operation requires explicit learner consent."""
 
 
+class ExternalProviderConsentRequired(BuddyServiceError):
+    """Raised before sending learner content to an external AI provider."""
+
+
 class InvalidBuddyInput(BuddyServiceError):
     """Raised when service inputs violate Buddy domain constraints."""
 

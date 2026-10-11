@@ -18,6 +18,9 @@ def create_app(test_config=None):
 
     if test_config is not None:
         app.config.update(test_config)
+        app.config.setdefault("BUDDY_PROVIDER", "mock")
+        app.config.setdefault("BUDDY_GEMINI_ADULTS_ONLY", False)
+        app.config.setdefault("BUDDY_GEMINI_FREE_TIER_CONFIRMED", False)
 
     validate_config(app.config)
     configure_database(app)
@@ -34,11 +37,13 @@ def create_app(test_config=None):
     )
     from app.pages import pages
     from app.routes import web
+    from app.workspace import workspace_api
 
     app.register_blueprint(auth)
     app.register_blueprint(account)
     app.register_blueprint(web)
     app.register_blueprint(pages)
+    app.register_blueprint(workspace_api)
     app.register_blueprint(catalog_api)
     init_buddy_api(app)
     app.cli.add_command(seed_curriculum_command)
