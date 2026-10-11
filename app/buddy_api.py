@@ -212,6 +212,17 @@ def _history_is_enabled() -> bool:
     )
 
 
+def _configured_mock_provider() -> DeterministicMockProvider | None:
+    provider = current_app.extensions.get("buddy_provider")
+    if (
+        not isinstance(provider, DeterministicMockProvider)
+        or provider.is_mock is not True
+        or provider.provider_name != DeterministicMockProvider.provider_name
+    ):
+        return None
+    return provider
+
+
 @buddy_api.before_request
 def require_authenticated_json_user():
     request.max_content_length = MAX_REQUEST_BYTES
@@ -400,11 +411,15 @@ def unexpected_error(exception):
 @buddy_api.get("/status")
 def buddy_status():
     settings = get_privacy_settings(g.current_user.id)
+    provider = current_app.extensions.get("buddy_provider")
+    provider_name = getattr(provider, "provider_name", None)
+    provider_is_mock = getattr(provider, "is_mock", None)
+    mock_available = _configured_mock_provider() is not None
     return jsonify(
-        available=True,
+        available=mock_available,
         provider={
-            "name": current_app.extensions["buddy_provider"].provider_name,
-            "is_mock": True,
+            "name": provider_name if isinstance(provider_name, str) else None,
+            "is_mock": provider_is_mock is True,
         },
         history={
             "consent": _history_is_enabled(),
@@ -475,6 +490,10 @@ def _approved_memories(user_id: str) -> tuple[str, ...]:
 
 @buddy_api.post("/respond")
 def respond_to_learner():
+    provider = _configured_mock_provider()
+    if provider is None:
+        raise ProviderUnavailable("The configured Buddy provider is not the local mock.")
+
     payload = _json_body({"message", "conversation_id", "language"})
     learner_message = _required_string(
         payload,
@@ -509,9 +528,17 @@ def respond_to_learner():
         programming_language=language,
     )
     result = generate_response(
-        current_app.extensions["buddy_provider"],
+        provider,
         provider_request,
     )
+    if (
+        result.provider_name != DeterministicMockProvider.provider_name
+        or result.is_mock is not True
+        or not result.content.startswith("MOCK ONLY:")
+    ):
+        raise MalformedProviderResponse(
+            "The configured mock provider returned an unexpected response."
+        )
 
     saved_conversation = None
     if history_enabled:

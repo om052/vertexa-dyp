@@ -69,6 +69,8 @@ class LearningPagesTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"MOCK MODE", response.data)
         self.assertIn(b"responses are simulated", response.data)
+        self.assertIn(b"Real AI is not connected", response.data)
+        self.assertIn(b"messages are not sent to an AI provider", response.data)
         self.assertIn(b'name="csrf-token" content="', response.data)
         self.assertIn(b'id="buddy-history-enable"', response.data)
         self.assertIn(b'id="buddy-memory-toggle"', response.data)

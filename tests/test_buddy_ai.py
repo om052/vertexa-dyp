@@ -201,18 +201,27 @@ class BuddyAITests(unittest.TestCase):
 
     def test_provider_timeouts_unavailability_and_malformed_output(self):
         class TimeoutProvider:
+            provider_name = "timeout-provider"
+            is_mock = True
+
             def generate(self, request):
                 if not isinstance(request, BuddyProviderRequest):
                     raise AssertionError("provider received an invalid request")
                 raise TimeoutError("timeout")
 
         class UnavailableProvider:
+            provider_name = "unavailable-provider"
+            is_mock = True
+
             def generate(self, request):
                 if not isinstance(request, BuddyProviderRequest):
                     raise AssertionError("provider received an invalid request")
                 raise ProviderUnavailable("offline")
 
         class MalformedProvider:
+            provider_name = "malformed-provider"
+            is_mock = False
+
             def generate(self, request):
                 return BuddyProviderResponse(
                     provider_name="bad",
@@ -229,6 +238,21 @@ class BuddyAITests(unittest.TestCase):
             generate_response(MalformedProvider(), request)
         with self.assertRaises(InvalidProviderInput):
             generate_response(self.provider, object())
+
+    def test_provider_response_identity_must_match_server_configuration(self):
+        class MismatchedProvider:
+            provider_name = "configured-provider"
+            is_mock = True
+
+            def generate(self, request):
+                return BuddyProviderResponse(
+                    provider_name="unexpected-provider",
+                    content="MOCK ONLY: safe-looking output",
+                    is_mock=True,
+                )
+
+        with self.assertRaises(MalformedProviderResponse):
+            generate_response(MismatchedProvider(), self.request())
 
     def test_mock_uses_no_network_or_code_execution(self):
         request = self.request("Explain this code.")

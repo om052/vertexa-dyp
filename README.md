@@ -71,9 +71,10 @@ registration (`/auth/register`), login (`/auth/login`), a private learner
 profile (`/account/profile`), profile settings (`/account/settings`), and a
 POST-only logout (`/auth/logout`). Public curriculum remains available without
 an account. If the database has no seeded catalog, learning pages show an
-empty state; browsing never seeds or changes curriculum data. Buddy is shown
-only as a clearly marked future feature. Saved lesson progress, interactive
-coding, AI assistance, games, and XP are not implemented.
+empty state; browsing never seeds or changes curriculum data. Signed-in users
+can access Buddy's authenticated chat, which currently uses a clearly labeled
+deterministic local mock rather than a real AI provider. Saved lesson progress,
+interactive coding, real AI assistance, games, and XP are not implemented.
 
 The interface uses server-rendered Flask templates with plain HTML, CSS, and
 JavaScript. API-provided lesson text and code examples are inserted as text,
@@ -310,8 +311,8 @@ The Buddy database foundation includes explicit-consent saved conversations,
 ordered messages, learner-approved memory items, and per-user privacy settings.
 Service functions enforce ownership, reject expired conversations for reads,
 and treat missing privacy settings as memory disabled. Buddy's provider
-contract currently has only a deterministic, local mock; no external provider
-or Buddy API is enabled.
+contract currently has only a deterministic, local mock; the authenticated
+Buddy API is available, but no external provider is configured.
 
 The mock is for tests and development only. Its output is explicitly marked
 `MOCK ONLY`; it does not analyze or execute submitted code. The calling
@@ -329,6 +330,32 @@ messages from the configured database. Deployment scheduling is an operator
 responsibility; no scheduler or worker is included. This command does not
 change backup retention: older backups may still contain deleted conversation
 data, and their retention and expiry cleanup must be managed separately.
+
+## Buddy interface (mock only)
+
+Signed-in pages show a small animated Buddy launcher with a brief greeting and
+quick links for hints, explanations, and debugging. Those links open the
+existing authenticated Buddy chat and submit a fixed starter request through
+its existing API flow. The Buddy page also has the same quick actions beside
+its composer. Expressions reflect local UI states such as waiting for a mock
+reply or receiving one; they do not indicate code execution or infer learner
+emotion. The launcher and animations respect keyboard focus and reduced-motion
+settings. Replies remain deterministic local mock output; no external AI
+provider is connected.
+
+## Buddy provider configuration
+
+Buddy currently supports only the deterministic local mock. `BUDDY_PROVIDER`
+defaults to `mock`; setting it to any unsupported value causes application
+startup to fail rather than silently switching providers. The Buddy page
+labels replies as simulated and explains that messages are not sent to an AI
+provider. There is no real-provider adapter or supported AI API-key setting in
+this version. Do not add a provider credential expecting it to enable AI.
+
+A real provider still requires a separately approved provider, valid server-
+side credentials, billing authorization and limits, third-party data-use
+disclosure and learner consent, bounded network behavior, and provider-specific
+tests. No external provider is contacted by this application.
 
 ## Buddy protected API (mock only)
 
@@ -388,5 +415,33 @@ All Buddy responses are visibly labelled as simulated mock output. The page
 does not execute learner code or connect to an external provider. The
 per-process API request limiter does not coordinate across workers, and this
 development mock interface is not a production AI launch.
+
+## Buddy pre-provider safeguards
+
+The current request limits are 64 KiB per JSON request, 12,000 characters per
+learner message, 20 context messages / 24,000 context characters, 20 approved
+memory items / 5,000 memory characters, and at most 4,000 output characters.
+The API currently requests at most 1,000 output characters. The deterministic
+mock itself also truncates output to the request limit. The synchronous
+provider adapter recognizes a raised `TimeoutError` but does not enforce a
+wall-clock timeout or retry policy.
+
+Before enabling any real provider, require enforced connect/read/overall
+timeouts, bounded retries with backoff and duplicate-safe semantics, explicit
+token and output caps, per-user and global usage/cost budgets, quota-exhaustion
+and missing-credential fail-closed behavior, and verified provider retention,
+training, and data-processing terms. Disclose third-party transmission before
+consent, minimize the context sent, and define provider-side deletion and
+retention behavior. None of these provider terms or safeguards is verified or
+implemented by this local-mock phase.
+
+Saved responses are committed atomically with their user/assistant messages,
+but `/api/buddy/respond` has no durable idempotency key. A client retry after
+an ambiguous failure can therefore create a duplicate exchange; the current
+browser retry is manual and warns that it may duplicate. Robust deduplication
+across concurrent requests and application workers needs a durable unique
+request key scoped to the user, a request fingerprint, and a stored processing
+result linked transactionally to the conversation exchange. This requires a
+schema migration and is not implemented pending approval.
 #   v e r t e x a - d y p  
  

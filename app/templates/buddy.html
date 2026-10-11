@@ -8,13 +8,30 @@
       <h1>Learn with <span class="text-gradient">Buddy.</span></h1>
       <p class="buddy-page-description">A patient programming mentor for your next small step. Ask a question, explore an idea, or get help understanding an error.</p>
     </div>
-    <p class="mock-banner" role="status"><span aria-hidden="true">◇</span> MOCK MODE — responses are simulated</p>
+    <div class="buddy-provider-notice" role="status">
+      <p class="mock-banner"><span aria-hidden="true">◇</span> MOCK MODE — responses are simulated</p>
+      <p>Real AI is not connected. Buddy uses a deterministic local mock; messages are not sent to an AI provider.</p>
+    </div>
   </header>
 
   <div class="buddy-layout">
     <section class="buddy-chat-panel" aria-labelledby="buddy-chat-heading">
       <div class="buddy-panel-heading">
-        <div class="buddy-heading-avatar" aria-hidden="true">B</div>
+        <div class="buddy-heading-avatar buddy-heading-face" aria-hidden="true">
+          <svg class="buddy-face" viewBox="0 0 64 64">
+            <path class="buddy-face-antenna" d="M32 9V5m-4 0h8" />
+            <rect class="buddy-face-shell" x="9" y="15" width="46" height="39" rx="15" />
+            <path class="buddy-face-ear" d="M9 29H5v12h4m46-12h4v12h-4" />
+            <path class="buddy-face-eye" d="M21 31v4m22-4v4" />
+            <path class="buddy-face-mouth buddy-mouth-idle" d="M23 43c5 5 13 5 18-1" />
+            <path class="buddy-face-mouth buddy-mouth-thinking" d="M24 44h16" />
+            <path class="buddy-face-mouth buddy-mouth-playful" d="M23 44c8 3 13 0 18-4" />
+            <path class="buddy-face-mouth buddy-mouth-encouraging" d="M22 41c5 7 15 7 20 0" />
+            <path class="buddy-face-mouth buddy-mouth-celebrating" d="M23 40c0 10 18 10 18 0c0-5-18-5-18 0" />
+            <circle class="buddy-face-cheek" cx="16" cy="40" r="2" />
+            <circle class="buddy-face-cheek" cx="48" cy="40" r="2" />
+          </svg>
+        </div>
         <div>
           <h2 id="buddy-chat-heading">Buddy Mentor</h2>
           <p><span class="buddy-online-dot" aria-hidden="true"></span> Local mock · no code execution</p>
@@ -42,6 +59,11 @@
 
       <div class="buddy-compose-error" id="buddy-compose-error" role="alert" hidden></div>
       <form class="buddy-composer" id="buddy-composer">
+        <div class="buddy-quick-actions" role="group" aria-label="Quick questions for Buddy">
+          <button type="button" data-buddy-quick="hint" disabled>Give me a hint</button>
+          <button type="button" data-buddy-quick="explain" disabled>Explain this</button>
+          <button type="button" data-buddy-quick="debug" disabled>Help debug</button>
+        </div>
         <label class="visually-hidden" for="buddy-message">Your message to Buddy</label>
         <textarea id="buddy-message" name="message" rows="2" maxlength="12000" placeholder="Ask a coding question..." required disabled></textarea>
         <div class="buddy-composer-footer">
@@ -60,7 +82,7 @@
           <div><p class="eyebrow">YOUR CHOICE</p><h2 id="buddy-history-heading">Saved history</h2></div>
           <span class="buddy-side-icon" aria-hidden="true">◷</span>
         </div>
-        <p class="buddy-side-copy" id="buddy-history-description">By default, this chat stays only in this browser tab. Opt in to save conversations to your account and reopen them later.</p>
+        <p class="buddy-side-copy" id="buddy-history-description">Saved history is off until you opt in. Without it, exchanges stay only in this tab and are cleared on reload. Choosing Not now applies to this page; the prompt may return later. Declining does not delete conversations already saved.</p>
         <div class="buddy-consent-actions" id="buddy-consent-actions" hidden>
           <button class="button button-primary button-small" id="buddy-history-enable" type="button" disabled>Enable saved history</button>
           <button class="button button-outline button-small" id="buddy-history-decline" type="button" disabled>Not now</button>

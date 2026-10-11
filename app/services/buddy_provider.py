@@ -165,6 +165,9 @@ class BuddyProviderResponse:
 class BuddyProvider(Protocol):
     """Synchronous contract implemented by provider adapters."""
 
+    provider_name: str
+    is_mock: bool
+
     def generate(self, request: BuddyProviderRequest) -> BuddyProviderResponse:
         """Generate a response without persisting the request or response."""
 
@@ -181,6 +184,8 @@ def generate_response(
     except TimeoutError as error:
         raise ProviderTimeout("Buddy provider request timed out.") from error
 
+    provider_name = getattr(provider, "provider_name", None)
+    provider_is_mock = getattr(provider, "is_mock", None)
     if (
         not isinstance(response, BuddyProviderResponse)
         or not isinstance(response.provider_name, str)
@@ -189,9 +194,14 @@ def generate_response(
         or not response.content.strip()
         or not isinstance(response.is_mock, bool)
         or len(response.content) > request.max_output_chars
+        or not isinstance(provider_name, str)
+        or not provider_name.strip()
+        or not isinstance(provider_is_mock, bool)
+        or response.provider_name != provider_name
+        or response.is_mock is not provider_is_mock
     ):
         raise MalformedProviderResponse(
-            "Buddy provider returned an invalid or oversized response."
+            "Buddy provider returned an invalid, mismatched, or oversized response."
         )
     return response
 
@@ -200,6 +210,7 @@ class DeterministicMockProvider:
     """Return canned test-only guidance; never analyzes or executes learner code."""
 
     provider_name = "deterministic-local-mock"
+    is_mock = True
 
     _RESPONSES = {
         "hint_first": (

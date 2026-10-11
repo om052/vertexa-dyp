@@ -81,5 +81,42 @@
         <a href="{{ url_for('web.health') }}">Check service status</a>
       </div>
     </footer>
+    {% if current_user and page != 'buddy' %}
+      <aside class="buddy-float" id="buddy-float">
+        <section class="buddy-float-panel" id="buddy-float-panel" aria-label="Buddy quick actions" hidden>
+          <div class="buddy-float-panel-heading">
+            <div>
+              <p class="buddy-float-kicker">YOUR CODING COMPANION</p>
+              <h2>Buddy <span class="buddy-mock-tag">MOCK</span></h2>
+            </div>
+            <a class="buddy-float-open" href="{{ url_for('pages.buddy') }}">Open chat</a>
+          </div>
+          <p class="buddy-float-copy">Local simulated replies only — no AI provider is connected.</p>
+          <nav class="buddy-float-actions" aria-label="Ask Buddy">
+            <a href="{{ url_for('pages.buddy', quick='hint') }}">Give me a hint</a>
+            <a href="{{ url_for('pages.buddy', quick='explain') }}">Explain this</a>
+            <a href="{{ url_for('pages.buddy', quick='debug') }}">Help debug</a>
+          </nav>
+        </section>
+        <p class="buddy-float-greeting" id="buddy-float-greeting" aria-live="polite"></p>
+        <button class="buddy-float-launcher" id="buddy-float-launcher" type="button"
+                aria-expanded="false" aria-controls="buddy-float-panel" aria-label="Open Buddy quick actions">
+          <svg class="buddy-face" viewBox="0 0 64 64" role="img" aria-label="Buddy, a friendly robot">
+            <path class="buddy-face-antenna" d="M32 9V5m-4 0h8" />
+            <rect class="buddy-face-shell" x="9" y="15" width="46" height="39" rx="15" />
+            <path class="buddy-face-ear" d="M9 29H5v12h4m46-12h4v12h-4" />
+            <path class="buddy-face-eye" d="M21 31v4m22-4v4" />
+            <path class="buddy-face-mouth buddy-mouth-idle" d="M23 43c5 5 13 5 18-1" />
+            <path class="buddy-face-mouth buddy-mouth-thinking" d="M24 44h16" />
+            <path class="buddy-face-mouth buddy-mouth-playful" d="M23 44c8 3 13 0 18-4" />
+            <path class="buddy-face-mouth buddy-mouth-encouraging" d="M22 41c5 7 15 7 20 0" />
+            <path class="buddy-face-mouth buddy-mouth-celebrating" d="M23 40c0 10 18 10 18 0c0-5-18-5-18 0" />
+            <circle class="buddy-face-cheek" cx="16" cy="40" r="2" />
+            <circle class="buddy-face-cheek" cx="48" cy="40" r="2" />
+          </svg>
+        </button>
+      </aside>
+      <script src="{{ url_for('static', filename='js/buddy-widget.js') }}" defer></script>
+    {% endif %}
   </body>
 </html>

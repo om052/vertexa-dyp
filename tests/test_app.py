@@ -44,6 +44,26 @@ class AppTests(unittest.TestCase):
 
         self.assertFalse(self.database_path.exists())
 
+    def test_buddy_provider_defaults_to_mock(self):
+        self.assertEqual(self.app.config["BUDDY_PROVIDER"], "mock")
+        self.assertEqual(
+            self.app.extensions["buddy_provider"].provider_name,
+            "deterministic-local-mock",
+        )
+
+    def test_startup_rejects_unsupported_buddy_provider(self):
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "BUDDY_PROVIDER currently supports only 'mock'",
+        ):
+            create_app(
+                {
+                    "TESTING": True,
+                    "DATABASE_PATH": str(self.database_path),
+                    "BUDDY_PROVIDER": "anthropic",
+                }
+            )
+
     def test_production_requires_secret_key(self):
         with patch.dict(
             os.environ,

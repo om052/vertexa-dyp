@@ -19,7 +19,11 @@ from app.models import (
 )
 from app.services.buddy_conversations import create_saved_conversation
 from app.services.buddy_memory import set_memory_enabled
-from app.services.buddy_provider import BuddyProviderRequest, ProviderUnavailable
+from app.services.buddy_provider import (
+    BuddyProviderRequest,
+    BuddyProviderResponse,
+    ProviderUnavailable,
+)
 
 
 CSRF_PATTERN = re.compile(rb'name="csrf_token" value="([^"]+)"')
@@ -118,6 +122,63 @@ class BuddyAPITests(unittest.TestCase):
         self.assertFalse(response.get_json()["history"]["consent"])
         self.assertFalse(response.get_json()["memory"]["enabled"])
         self.assertEqual(response.headers["Cache-Control"], "no-store")
+
+    def test_provider_status_reflects_server_configuration_and_rejects_non_mock(self):
+        provider = self.app.extensions["buddy_provider"]
+        provider.is_mock = False
+        status = self.api("get", "/status").get_json()
+        self.assertFalse(status["available"])
+        self.assertFalse(status["provider"]["is_mock"])
+        self.assertEqual(
+            status["provider"]["name"],
+            "deterministic-local-mock",
+        )
+
+        self.post_json("/history-consent", {"consent": True})
+        response = self.post_json("/respond", {"message": "Help me."})
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            response.get_json()["error"]["code"],
+            "provider_unavailable",
+        )
+        with self.app.app_context():
+            self.assertEqual(
+                db.session.scalar(
+                    select(func.count()).select_from(BuddyConversation)
+                ),
+                0,
+            )
+
+    def test_unexpected_mock_response_is_rejected_before_saving(self):
+        self.post_json("/history-consent", {"consent": True})
+        provider = self.app.extensions["buddy_provider"]
+        with patch.object(
+            provider,
+            "generate",
+            return_value=BuddyProviderResponse(
+                provider_name="unexpected-provider",
+                content="MOCK ONLY: unexpected output",
+                is_mock=True,
+            ),
+        ):
+            response = self.post_json("/respond", {"message": "Help me."})
+
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(
+            response.get_json()["error"]["code"],
+            "provider_error",
+        )
+        with self.app.app_context():
+            self.assertEqual(
+                db.session.scalar(
+                    select(func.count()).select_from(BuddyConversation)
+                ),
+                0,
+            )
+            self.assertEqual(
+                db.session.scalar(select(func.count()).select_from(BuddyMessage)),
+                0,
+            )
 
     def test_csrf_is_required_for_cookie_authenticated_state_changes(self):
         response = self.client.post(

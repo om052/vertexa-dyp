@@ -8,6 +8,7 @@ from sqlalchemy.engine import URL
 
 def load_config(instance_path: str) -> dict:
     environment = os.environ.get("CODEQUEST_ENV", "development").strip().lower()
+    buddy_provider = os.environ.get("BUDDY_PROVIDER", "mock").strip().lower()
     database_path = os.environ.get("CODEQUEST_DATABASE_PATH")
     if database_path is None and environment != "production":
         database_path = str(Path(instance_path) / "codequest.sqlite3")
@@ -17,6 +18,7 @@ def load_config(instance_path: str) -> dict:
         "SECRET_KEY": os.environ.get("CODEQUEST_SECRET_KEY")
         or (None if environment == "production" else secrets.token_hex(32)),
         "DATABASE_PATH": database_path,
+        "BUDDY_PROVIDER": buddy_provider,
         "SESSION_COOKIE_HTTPONLY": True,
         "SESSION_COOKIE_SAMESITE": "Lax",
         "SESSION_COOKIE_SECURE": environment == "production",
@@ -25,6 +27,12 @@ def load_config(instance_path: str) -> dict:
 
 
 def validate_config(config: dict) -> None:
+    if config.get("BUDDY_PROVIDER") != "mock":
+        raise RuntimeError(
+            "BUDDY_PROVIDER currently supports only 'mock'. "
+            "No real AI provider is configured."
+        )
+
     if config["ENVIRONMENT"] == "production" and not config["SECRET_KEY"]:
         raise RuntimeError(
             "CODEQUEST_SECRET_KEY must be set when CODEQUEST_ENV=production."

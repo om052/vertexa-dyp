@@ -29,6 +29,11 @@
   const memoryContent = document.getElementById("buddy-memory-content");
   const memoryApproval = document.getElementById("buddy-memory-approval");
   const memoryCancel = document.getElementById("buddy-memory-cancel");
+  const quickActions = {
+    hint: "Give me one small hint for the coding problem I'm working on without giving away the full solution.",
+    explain: "Please explain the coding concept or snippet I'm working on. Ask me to share it if you need more context.",
+    debug: "Help me debug a coding problem. Ask me to share the error message and relevant code, and guide me through it step by step.",
+  };
 
   const state = {
     historyConsent: false,
@@ -38,6 +43,8 @@
     memoryItems: [],
     editingMemoryId: null,
     busy: false,
+    ready: false,
+    expressionResetTimer: null,
   };
 
   function element(tag, className, text) {
@@ -45,6 +52,17 @@
     if (className) result.className = className;
     if (text !== undefined) result.textContent = text;
     return result;
+  }
+
+  function setBuddyExpression(expression) {
+    if (state.expressionResetTimer) {
+      window.clearTimeout(state.expressionResetTimer);
+      state.expressionResetTimer = null;
+    }
+    const allowed = ["idle", "thinking", "playful", "encouraging", "celebrating"];
+    const value = allowed.includes(expression) ? expression : "idle";
+    document.documentElement.dataset.buddyExpression = value;
+    window.setBuddyExpression?.(value);
   }
 
   function errorMessage(status, serverMessage) {
@@ -152,10 +170,10 @@
     historyNewChat.disabled = false;
     if (state.historyConsent) {
       historyDescription.textContent =
-        "New Buddy exchanges are saved to your account and expire after 90 days without activity. Turning saving off does not delete conversations already saved.";
+        "New Buddy exchanges are saved to your account and expire after 90 days without activity. History consent lasts for this signed-in session and may remain enabled after reload until logout or session expiry. Turning saving off does not delete conversations already saved.";
     } else {
       historyDescription.textContent =
-        "By default, this chat stays only in this browser tab. Opt in to save conversations to your account and reopen them later.";
+        "Saved history is off until you opt in. Without it, exchanges stay only in this tab and are cleared on reload. Choosing Not now applies to this page; the prompt may return later. Declining does not delete conversations already saved.";
     }
   }
 
@@ -243,6 +261,9 @@
     messageInput.disabled = busy;
     languageSelect.disabled = busy;
     sendButton.disabled = busy;
+    document.querySelectorAll("[data-buddy-quick]").forEach((button) => {
+      button.disabled = busy || !state.ready;
+    });
     sendButton.querySelector("span:first-child").textContent = busy ? "Thinking…" : "Send";
     composer.setAttribute("aria-busy", String(busy));
   }
@@ -254,6 +275,7 @@
   async function submitMessage(message, retry) {
     if (state.busy) return;
     setBusy(true);
+    setBuddyExpression("thinking");
     composeError.hidden = true;
     composeError.replaceChildren();
     if (!retry) appendMessage("user", message);
@@ -271,12 +293,18 @@
         throw new Error("Buddy returned an invalid response.");
       }
       appendMessage("assistant", result.response.content);
+      setBuddyExpression("celebrating");
+      state.expressionResetTimer = window.setTimeout(
+        () => setBuddyExpression("idle"),
+        2200,
+      );
       if (result.saved && result.conversation?.id) {
         state.selectedConversationId = result.conversation.id;
         await loadConversations();
       }
       messageInput.value = "";
     } catch (error) {
+      setBuddyExpression("encouraging");
       showInlineError(
         composeError,
         `${error.message} A send request may already have been processed; it was not retried automatically.`,
@@ -284,10 +312,16 @@
       const retryButton = element(
         "button",
         "button button-outline button-small",
-        "Retry send (may duplicate)",
+        "Resend anyway (may duplicate)",
       );
       retryButton.type = "button";
-      retryButton.addEventListener("click", () => submitMessage(message, true));
+      retryButton.addEventListener("click", () => {
+        if (window.confirm(
+          "The request may already have been processed. Resending can create a duplicate saved exchange. Continue?",
+        )) {
+          submitMessage(message, true);
+        }
+      });
       composeError.append(retryButton);
       if (state.historyConsent) {
         const refreshButton = element(
@@ -406,13 +440,22 @@
         },
       });
       state.memoryEnabled = result.privacy.memory_enabled;
+      memoryToggle.textContent = state.memoryEnabled ? "Turn memory off" : "Enable memory";
+      memoryStatus.textContent = state.memoryEnabled
+        ? "On — only items you approve are stored. Memory is separate from conversation history."
+        : "Off — Buddy does not send or store persistent learning memory.";
       if (!state.memoryEnabled) {
         closeMemoryEditor();
         if (state.memoryItems.length) {
           state.memoryItems = [];
         }
       }
-      await loadMemory();
+      renderMemoryItems();
+      try {
+        await loadMemory();
+      } catch (error) {
+        memoryStatus.textContent = `Setting saved, but the memory list could not refresh: ${error.message}`;
+      }
     } catch (error) {
       memoryStatus.textContent = error.message;
     } finally {
@@ -494,6 +537,17 @@
       if (!status.provider.is_mock) {
         throw new Error("The configured Buddy response mode could not be verified.");
       }
+      state.ready = true;
+      document.querySelectorAll("[data-buddy-quick]").forEach((button) => {
+        button.disabled = false;
+      });
+      const params = new URLSearchParams(window.location.search);
+      const quickAction = params.get("quick");
+      if (quickAction && Object.prototype.hasOwnProperty.call(quickActions, quickAction)) {
+        window.history.replaceState({}, "", window.location.pathname);
+        messageInput.value = "";
+        await sendMessage(quickActions[quickAction]);
+      }
     } catch (error) {
       showInlineError(composeError, error.message);
       memoryStatus.textContent = "Privacy settings could not be loaded. Please refresh and try again.";
@@ -527,6 +581,12 @@
   memoryAdd.addEventListener("click", openMemoryCreate);
   memoryCancel.addEventListener("click", closeMemoryEditor);
   memoryEditor.addEventListener("submit", saveMemory);
+  document.querySelectorAll("[data-buddy-quick]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const message = quickActions[button.dataset.buddyQuick];
+      if (message) sendMessage(message);
+    });
+  });
 
   initialize();
 })();
