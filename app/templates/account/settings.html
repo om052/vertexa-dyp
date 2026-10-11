@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Account settings — CodeQuest AI{% endblock %}
+{% block content %}
+<section class="account-page">
+  <div class="account-heading">
+    <p class="eyebrow"><span class="eyebrow-line"></span> ACCOUNT SETTINGS</p>
+    <h1>Make it <span class="text-gradient">yours.</span></h1>
+    <p>Update the profile details shown only to you.</p>
+  </div>
+  <div class="settings-layout">
+    <div class="settings-card">
+      <h2>Profile details</h2>
+      <p class="form-intro">Your username and email address cannot be changed here.</p>
+      {% if errors %}
+        <div class="form-summary" role="alert" aria-live="assertive">
+          <strong>Please review your changes.</strong>
+          {% if errors.form %}<p>{{ errors.form }}</p>{% endif %}
+        </div>
+      {% endif %}
+      <form method="post" action="{{ url_for('account.settings') }}" class="account-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-field">
+          <label for="username">Username</label>
+          <input id="username" type="text" value="{{ user.username }}" readonly aria-readonly="true">
+        </div>
+        <div class="form-field">
+          <label for="email">Email address</label>
+          <input id="email" type="email" value="{{ user.email }}" readonly aria-readonly="true">
+        </div>
+        <div class="form-field">
+          <label for="display_name">Display name <span class="optional-label">Optional</span></label>
+          <input id="display_name" name="display_name" type="text" value="{{ values.display_name }}" maxlength="80" autocomplete="nickname" {% if errors.display_name %}aria-invalid="true" aria-describedby="display-name-error"{% endif %}>
+          {% if errors.display_name %}<p class="field-error" id="display-name-error">{{ errors.display_name }}</p>{% endif %}
+        </div>
+        <div class="form-field">
+          <label for="bio">Short bio <span class="optional-label">Optional · 280 characters</span></label>
+          <textarea id="bio" name="bio" rows="4" maxlength="280" {% if errors.bio %}aria-invalid="true" aria-describedby="bio-error"{% endif %}>{{ values.bio }}</textarea>
+          {% if errors.bio %}<p class="field-error" id="bio-error">{{ errors.bio }}</p>{% endif %}
+        </div>
+        <div class="form-field">
+          <label for="preferred_language_code">Preferred programming language <span class="optional-label">Optional</span></label>
+          <select id="preferred_language_code" name="preferred_language_code" {% if errors.preferred_language_code %}aria-invalid="true" aria-describedby="language-error"{% endif %}>
+            <option value="">No preference</option>
+            {% for language in languages %}
+              <option value="{{ language.code }}" {% if values.preferred_language_code == language.code %}selected{% endif %}>{{ language.name }}</option>
+            {% endfor %}
+          </select>
+          {% if errors.preferred_language_code %}<p class="field-error" id="language-error">{{ errors.preferred_language_code }}</p>{% endif %}
+        </div>
+        <div class="settings-actions">
+          <button class="button button-primary" type="submit">Save changes</button>
+          <a class="button button-outline" href="{{ url_for('account.profile') }}">Cancel</a>
+        </div>
+      </form>
+    </div>
+    <aside class="settings-aside">
+      <h2>Your account</h2>
+      <p><strong>Created</strong><br><time datetime="{{ user.created_at.isoformat() }}">{{ user.created_at.strftime("%B %d, %Y") }}</time></p>
+      <a href="{{ url_for('pages.learn') }}" class="text-link">Back to learning <span aria-hidden="true">→</span></a>
+      <form method="post" action="{{ url_for('auth.logout') }}" class="settings-logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button button-outline" type="submit">Log out</button>
+      </form>
+    </aside>
+  </div>
+</section>
+{% endblock %}

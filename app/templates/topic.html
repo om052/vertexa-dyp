@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Topic — CodeQuest AI{% endblock %}
+{% block content %}
+<section class="page-hero compact-hero">
+  <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="{{ url_for('pages.learn') }}">Learn</a><span aria-hidden="true">/</span><a id="topic-roadmap-link" href="{{ url_for('pages.roadmap', language_code=language_code) }}">Roadmap</a><span aria-hidden="true">/</span><span>Topic</span></nav>
+  <div id="topic-header" data-language="{{ language_code }}" data-topic="{{ topic_slug }}" data-api="/api/languages/{{ language_code }}/topics/{{ topic_slug }}"><p class="loading-state">Loading this topic…</p></div>
+</section>
+<section class="section topic-section">
+  <div class="roadmap-notice"><span class="notice-icon" aria-hidden="true">ⓘ</span><p>Prerequisites are learning suggestions only. All lessons are open to browse.</p></div>
+  <div id="topic-lessons" class="lesson-list" aria-live="polite"></div>
+</section>
+{% endblock %}

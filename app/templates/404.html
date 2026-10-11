@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block title %}Page not found — CodeQuest AI{% endblock %}
+{% block content %}
+<section class="error-page"><p class="eyebrow">404 · WRONG TURN?</p><h1>This path isn't on the map.</h1><p>The page or curriculum item could not be found. Head back to Learn and choose another path.</p><a class="button button-primary" href="{{ url_for('pages.learn') }}">Back to Learn <span aria-hidden="true">→</span></a></section>
+{% endblock %}

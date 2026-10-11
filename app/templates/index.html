@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}CodeQuest AI — Your next coding skill starts here{% endblock %}
+{% block content %}
+<section class="hero home-hero">
+  <div class="hero-copy">
+    <p class="eyebrow"><span class="eyebrow-line"></span> YOUR NEXT CHAPTER STARTS HERE</p>
+    <h1>Turn curiosity<br>into <span class="text-gradient">code.</span></h1>
+    <p class="hero-description">A clear, step-by-step path to coding confidence. Explore a language, follow the roadmap, and learn one idea at a time.</p>
+    <div class="hero-actions">
+      <a class="button button-primary" href="{{ url_for('pages.learn') }}">Start learning <span aria-hidden="true">→</span></a>
+      <a class="text-link" href="#how-it-works">How it works <span aria-hidden="true">↓</span></a>
+    </div>
+    <div class="hero-meta"><span class="meta-icon" aria-hidden="true">✦</span> Beginner-friendly paths <span class="meta-divider" aria-hidden="true">·</span> Learn at your own pace</div>
+  </div>
+  <div class="hero-art" aria-label="Illustration of a coding roadmap">
+    <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+    <div class="orbit-label orbit-label-top">LEARN <span aria-hidden="true">✦</span></div>
+    <div class="orbit-label orbit-label-bottom">BUILD <span aria-hidden="true">✧</span></div>
+    <div class="code-card">
+      <div class="code-card-head"><span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span><span>first_steps.py</span><span class="code-card-lock" aria-label="Illustration only">◇</span></div>
+      <pre aria-label="Decorative code example"><code><span class="code-muted">01</span> <span class="code-purple">def</span> <span class="code-blue">your_journey</span>():
+<span class="code-muted">02</span>   <span class="code-green">learn</span>(<span class="code-orange">"one step"</span>)
+<span class="code-muted">03</span>   <span class="code-purple">return</span> <span class="code-blue">confidence</span>
+
+<span class="code-muted">04</span> <span class="code-blue">print</span>(<span class="code-green">your_journey</span>())<span class="cursor-block" aria-hidden="true"></span></code></pre>
+      <div class="code-card-foot"><span class="live-dot" aria-hidden="true"></span> YOUR FIRST QUEST AWAITS</div>
+    </div>
+    <div class="float-chip chip-top"><span aria-hidden="true">⌘</span> Learn by doing</div>
+    <div class="float-chip chip-bottom"><span aria-hidden="true">↗</span> Progress, your way</div>
+    <div class="spark spark-one" aria-hidden="true">✦</div><div class="spark spark-two" aria-hidden="true">✧</div>
+  </div>
+</section>
+
+<section class="section language-section" aria-labelledby="languages-title">
+  <div class="section-heading">
+    <div><p class="eyebrow">PICK YOUR FIRST PATH</p><h2 id="languages-title">Where will you <span class="text-gradient">begin?</span></h2></div>
+    <a class="text-link" href="{{ url_for('pages.learn') }}">View all learning paths <span aria-hidden="true">→</span></a>
+  </div>
+  <div id="home-languages" class="language-grid" data-api="/api/languages" aria-live="polite">
+    <p class="loading-state">Loading learning paths…</p>
+  </div>
+</section>
+
+<section id="how-it-works" class="section how-section">
+  <div class="section-heading section-heading-centered"><div><p class="eyebrow">A LITTLE STRUCTURE, A LOT OF POSSIBILITY</p><h2>A path that makes <span class="text-gradient">sense.</span></h2></div></div>
+  <div class="steps-grid">
+    <article class="step-card"><span class="step-number">01</span><span class="step-icon" aria-hidden="true">⌘</span><h3>Choose a language</h3><p>Start with a language that matches your curiosity. You can explore any path.</p></article>
+    <article class="step-card"><span class="step-number">02</span><span class="step-icon" aria-hidden="true">↗</span><h3>Follow the roadmap</h3><p>Browse bite-sized topics and lessons arranged in a thoughtful order.</p></article>
+    <article class="step-card"><span class="step-number">03</span><span class="step-icon" aria-hidden="true">✧</span><h3>Grow one idea at a time</h3><p>Read examples, connect concepts, and build your understanding at your pace.</p></article>
+  </div>
+</section>
+
+<section class="section future-section">
+  <div class="future-copy"><p class="eyebrow">BUILT IN THOUGHTFUL STEPS</p><h2>Your learning journey is <span class="text-gradient">just beginning.</span></h2><p>Browse the starter curriculum today. Accounts and saved learning progress are planned for a later phase; nothing is tracked yet.</p><a class="button button-primary" href="{{ url_for('pages.learn') }}">Explore the curriculum <span aria-hidden="true">→</span></a></div>
+  {% include "partials/buddy.html" %}
+</section>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Roadmap — CodeQuest AI{% endblock %}
+{% block content %}
+<section class="page-hero compact-hero">
+  <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="{{ url_for('pages.learn') }}">Learn</a><span aria-hidden="true">/</span><span id="roadmap-breadcrumb">Roadmap</span></nav>
+  <p class="eyebrow"><span class="eyebrow-line"></span> YOUR LEARNING ROADMAP</p>
+  <div id="roadmap-header" data-language="{{ language_code }}" data-api="/api/languages/{{ language_code }}"><p class="loading-state">Loading this roadmap…</p></div>
+</section>
+<section class="section roadmap-section">
+  <div class="roadmap-notice"><span class="notice-icon" aria-hidden="true">ⓘ</span><p>Explore topics in order or jump to any lesson. Prerequisites are suggestions; completion tracking is not implemented yet.</p></div>
+  <div id="roadmap-topics" class="roadmap-list" aria-live="polite"></div>
+</section>
+{% include "partials/buddy.html" %}
+{% endblock %}

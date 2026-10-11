@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Your profile — CodeQuest AI{% endblock %}
+{% block content %}
+<section class="account-page">
+  <div class="account-heading">
+    <p class="eyebrow"><span class="eyebrow-line"></span> YOUR ACCOUNT</p>
+    <h1>Your learner <span class="text-gradient">profile.</span></h1>
+    <p>Only you can see this profile. Public learner profiles are not enabled.</p>
+  </div>
+  <div class="profile-layout">
+    <article class="profile-card">
+      <div class="profile-avatar" aria-hidden="true">{{ (profile.display_name or user.username)[0]|upper }}</div>
+      <div class="profile-main">
+        <p class="profile-kicker">LEARNER</p>
+        <h2>{{ profile.display_name or user.username }}</h2>
+        <p class="profile-username">@{{ user.username }}</p>
+        {% if profile.bio %}<p class="profile-bio">{{ profile.bio }}</p>{% else %}<p class="profile-empty">Add a short introduction in your settings if you'd like.</p>{% endif %}
+      </div>
+      <a class="button button-outline" href="{{ url_for('account.settings') }}">Edit profile</a>
+    </article>
+    <aside class="account-details">
+      <h2>Account details</h2>
+      <dl>
+        <div><dt>Email address</dt><dd>{{ user.email }}</dd></div>
+        <div><dt>Preferred language</dt><dd>{{ profile.preferred_language.name if profile.preferred_language else "Not selected" }}</dd></div>
+        <div><dt>Member since</dt><dd><time datetime="{{ user.created_at.isoformat() }}">{{ user.created_at.strftime("%B %Y") }}</time></dd></div>
+      </dl>
+      <a class="text-link" href="{{ url_for('pages.learn') }}">Back to learning paths <span aria-hidden="true">→</span></a>
+    </aside>
+  </div>
+</section>
+{% endblock %}

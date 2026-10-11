@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Learn — CodeQuest AI{% endblock %}
+{% block content %}
+<section class="page-hero">
+  <p class="eyebrow"><span class="eyebrow-line"></span> THE LEARNING HUB</p>
+  <h1>Choose your <span class="text-gradient">next skill.</span></h1>
+  <p>Pick a language to explore its roadmap. Every path is browseable; prerequisites are helpful guidance, not progress gates.</p>
+</section>
+<section class="section learn-section" aria-labelledby="paths-title">
+  <div class="section-heading"><div><p class="eyebrow">START WITH THE BASICS</p><h2 id="paths-title">Learning paths</h2></div><span class="section-kicker">YOUR JOURNEY, YOUR PACE</span></div>
+  <div id="learn-languages" class="language-grid" data-api="/api/languages" aria-live="polite"><p class="loading-state">Loading learning paths…</p></div>
+</section>
+<section class="section"><div class="buddy-section-card"><h2>Friendly guidance is on the way</h2><p>Buddy is planned as a future image-based companion. For now, you can explore lessons and examples directly.</p></div></section>
+{% endblock %}

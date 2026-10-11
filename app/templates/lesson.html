@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Lesson — CodeQuest AI{% endblock %}
+{% block content %}
+<section class="page-hero compact-hero">
+  <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="{{ url_for('pages.learn') }}">Learn</a><span aria-hidden="true">/</span><a id="lesson-roadmap-link" href="{{ url_for('pages.roadmap', language_code=language_code) }}">Roadmap</a><span aria-hidden="true">/</span><a id="lesson-topic-link" href="{{ url_for('pages.topic_page', language_code=language_code, topic_slug=topic_slug) }}">Topic</a><span aria-hidden="true">/</span><span>Lesson</span></nav>
+  <div id="lesson-header" data-language="{{ language_code }}" data-topic="{{ topic_slug }}" data-lesson="{{ lesson_slug }}" data-api="/api/languages/{{ language_code }}/topics/{{ topic_slug }}/lessons/{{ lesson_slug }}"><p class="loading-state">Loading this lesson…</p></div>
+</section>
+<section class="section lesson-section">
+  <article id="lesson-content" class="lesson-content" aria-live="polite"></article>
+  <nav id="lesson-pager" class="lesson-pager" aria-label="Lesson navigation"></nav>
+</section>
+{% endblock %}
