@@ -157,16 +157,19 @@ h1, h2, h3 { font-family: "Space Grotesk", sans-serif; }
 .buddy-face-shell { fill: #102237; stroke: #73e4f1; stroke-width: 2.2; }
 .buddy-face-eye { fill: none; stroke: #b9f6fa; stroke-width: 3.5; stroke-linecap: round; transition: d .18s ease; }
 .buddy-face-mouth { fill: none; stroke: #8ff0df; stroke-width: 2.8; stroke-linecap: round; }
-.buddy-mouth-thinking, .buddy-mouth-playful, .buddy-mouth-encouraging, .buddy-mouth-celebrating { display: none; }
+.buddy-mouth-thinking, .buddy-mouth-playful, .buddy-mouth-encouraging, .buddy-mouth-celebrating, .buddy-mouth-confused { display: none; }
 .buddy-float[data-expression="thinking"] .buddy-mouth-idle, html[data-buddy-expression="thinking"] .buddy-mouth-idle,
 .buddy-float[data-expression="playful"] .buddy-mouth-idle, html[data-buddy-expression="playful"] .buddy-mouth-idle,
 .buddy-float[data-expression="encouraging"] .buddy-mouth-idle, html[data-buddy-expression="encouraging"] .buddy-mouth-idle,
+.buddy-float[data-expression="confused"] .buddy-mouth-idle, html[data-buddy-expression="confused"] .buddy-mouth-idle,
 .buddy-float[data-expression="celebrating"] .buddy-mouth-idle, html[data-buddy-expression="celebrating"] .buddy-mouth-idle { display: none; }
 .buddy-face-cheek { fill: #ff8e9b; opacity: .75; }
 .buddy-float[data-expression="thinking"] .buddy-face-eye, html[data-buddy-expression="thinking"] .buddy-face-eye { transform: translateY(-2px) scaleY(.72); transform-origin: center; }
 .buddy-float[data-expression="thinking"] .buddy-mouth-thinking, html[data-buddy-expression="thinking"] .buddy-mouth-thinking { display: block; }
 .buddy-float[data-expression="playful"] .buddy-mouth-playful, html[data-buddy-expression="playful"] .buddy-mouth-playful { display: block; }
 .buddy-float[data-expression="encouraging"] .buddy-mouth-encouraging, html[data-buddy-expression="encouraging"] .buddy-mouth-encouraging { display: block; }
+.buddy-float[data-expression="confused"] .buddy-face-eye, html[data-buddy-expression="confused"] .buddy-face-eye { transform: translateY(1px) scaleY(.85); transform-origin: center; }
+.buddy-float[data-expression="confused"] .buddy-mouth-confused, html[data-buddy-expression="confused"] .buddy-mouth-confused { display: block; }
 .buddy-float[data-expression="celebrating"] .buddy-face-eye, html[data-buddy-expression="celebrating"] .buddy-face-eye { transform: scaleY(1.35); transform-origin: center; }
 .buddy-float[data-expression="celebrating"] .buddy-mouth-celebrating, html[data-buddy-expression="celebrating"] .buddy-mouth-celebrating { display: block; }
 @keyframes buddy-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
@@ -446,3 +449,12 @@ h1, h2, h3 { font-family: "Space Grotesk", sans-serif; }
   .output-heading { align-items: center; }
   .workspace-buddy-heading { flex-direction: column; }
 }
+@media (max-width: 480px) {
+  .buddy-float { bottom: 14px; left: 14px; }
+  .buddy-float-panel { width: min(290px, calc(100vw - 28px)); }
+  .buddy-float-greeting { max-width: min(200px, calc(100vw - 100px)); }
+  .coding-workspace { width: calc(100% - 16px); padding-top: 20px; }
+  .workspace-header h1 { font-size: 28px; }
+  .mission-panel h2 { font-size: 19px; }
+}
+

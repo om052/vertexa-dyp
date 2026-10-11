@@ -8,10 +8,11 @@
   if (!viewer || !fallback || !status) return;
 
   const animations = {
+    welcome: "Greeting",
     idle: "Idle_A",
-    thinking: "Idle_A",
-    explaining: "Idle_A",
-    debugging: "Idle_A",
+    thinking: "Idle Listening",
+    explaining: "Idle_Talking",
+    debugging: "Idle Listening",
     playful: "Greeting",
     confused: "Confused",
     encouraging: "Yes",

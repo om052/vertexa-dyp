@@ -17,6 +17,12 @@
     c: '#include <stdio.h>\n\nint main(void) {\n    printf("Hello, world!\\n");\n    return 0;\n}',
     cpp: '#include <iostream>\n\nint main() {\n    std::cout << "Hello, world!\\n";\n    return 0;\n}',
   };
+  const brokenSamples = {
+    python: 'def greet(name)\n    print(f"Hello, {name}!")\n\ngreet("world")',
+    javascript: 'function greet(name) {\n  console.log("Hello, " + name;\n}\n\ngreet("world");',
+    c: '#include <stdio.h>\n\nint main(void) {\n    printf("Hello, world!\\n"\n    return 0;\n}',
+    cpp: '#include <iostream>\n\nint main() {\n    std::cout << "Hello, world!\\n"\n    return 0;\n}',
+  };
   const modeForLanguage = {
     python: "python",
     javascript: "javascript",
@@ -96,15 +102,25 @@
         latestDiagnostic = null;
         displayDiagnostic(null);
         output.textContent = result.message;
+        window.setBuddyExpression?.("idle");
+        window.setBuddyMessage?.(result.message);
         return result;
       }
       displayDiagnostic(result.diagnostic);
-      output.textContent = result.diagnostic
-        ? `${result.language} syntax error: ${result.diagnostic.error}`
-        : result.message;
+      if (result.diagnostic) {
+        output.textContent = `${result.language} syntax error: ${result.diagnostic.error}${result.diagnostic.line ? ` (Line ${result.diagnostic.line}${result.diagnostic.column ? `, column ${result.diagnostic.column}` : ""})` : ""}`;
+        window.setBuddyExpression?.("confused");
+        window.setBuddyMessage?.(`Buddy spotted a syntax error on line ${result.diagnostic.line}: "${result.diagnostic.error}". Take a close look at the highlighted line!`);
+      } else {
+        output.textContent = result.message;
+        window.setBuddyExpression?.("encouraging");
+        window.setBuddyMessage?.("Looking clean! No syntax errors found in your Python code.");
+      }
       return result;
     } catch (error) {
       output.textContent = `Diagnostics unavailable: ${error.message}`;
+      window.setBuddyExpression?.("confused");
+      window.setBuddyMessage?.(`Diagnostics unavailable: ${error.message}`);
       return null;
     }
   }
@@ -137,6 +153,12 @@
     buddyResponse.hidden = false;
     buddyResponse.textContent = "Buddy is thinking…";
     window.setBuddyExpression?.("thinking");
+    const hints = {
+      explain: "Buddy is analyzing the diagnostic to explain it clearly...",
+      hint: "Buddy is thinking of a helpful hint for your code...",
+      debug: "Buddy is reviewing your code step-by-step to help debug...",
+    };
+    window.setBuddyMessage?.(hints[action] || "Buddy is thinking...");
     try {
       const response = await fetch("/api/buddy/respond", {
         method: "POST",
@@ -157,9 +179,11 @@
       const label = result.response.is_mock ? "MOCK · simulated reply" : "GEMINI · Google AI";
       buddyResponse.textContent = `${label}: ${result.response.content}`;
       window.setBuddyExpression?.("encouraging");
+      window.setBuddyMessage?.(action === "hint" ? "Buddy provided a hint! Read below to take the next step." : "Buddy shared some helpful guidance below!");
     } catch (error) {
       buddyResponse.textContent = `Buddy could not respond: ${error.message}. No fallback response was generated.`;
       window.setBuddyExpression?.("confused");
+      window.setBuddyMessage?.(`Buddy could not respond: ${error.message}`);
     } finally {
       buddyBusy = false;
       button.disabled = false;
@@ -177,10 +201,21 @@
   document.getElementById("load-sample").addEventListener("click", () => {
     setCode(samples[languageSelect.value]);
     output.textContent = `${languageName()} sample loaded. No program has run.`;
+    window.setBuddyExpression?.("idle");
   });
+  const loadBrokenBtn = document.getElementById("load-broken");
+  if (loadBrokenBtn) {
+    loadBrokenBtn.addEventListener("click", () => {
+      setCode(brokenSamples[languageSelect.value] || samples[languageSelect.value]);
+      output.textContent = `${languageName()} buggy code sample loaded. Click "Check syntax" to test diagnostics.`;
+      window.setBuddyExpression?.("confused");
+      window.setBuddyMessage?.(`Loaded a buggy ${languageName()} snippet. Try running "Check syntax" to spot the issue!`);
+    });
+  }
   document.getElementById("reset-code").addEventListener("click", () => {
     setCode(samples[languageSelect.value]);
     output.textContent = "Editor reset to the selected language's sample. No program has run.";
+    window.setBuddyExpression?.("idle");
   });
   document.getElementById("check-syntax").addEventListener("click", checkSyntax);
   document.getElementById("run-code").addEventListener("click", async () => {
@@ -194,11 +229,14 @@
     languageSelect.dispatchEvent(new Event("change"));
     setCode(brokenMission);
     output.textContent = "Mission code loaded. The displayed TypeError is part of the challenge; this program has not run.";
+    window.setBuddyExpression?.("confused");
+    window.setBuddyMessage?.("Challenge loaded! The function divides by `len(value)` instead of `len(values)`. Can you fix it?");
   });
   document.getElementById("mission-verify").addEventListener("click", async () => {
     const resultElement = document.getElementById("mission-result");
     if (languageSelect.value !== "python") {
       resultElement.textContent = "Select Python before verifying this mission.";
+      window.setBuddyExpression?.("confused");
       return;
     }
     try {
@@ -212,10 +250,16 @@
       if (!response.ok) throw new Error(result.error?.message || "Mission verification failed.");
       resultElement.textContent = `${result.message}${result.xp_awarded ? ` +${result.xp_awarded} XP` : ""}`;
       document.getElementById("mission-total").textContent = `Verified mission XP: ${result.total_xp}`;
-      if (result.passed) window.setBuddyExpression?.("celebrating");
-      else window.setBuddyExpression?.("encouraging");
+      if (result.passed) {
+        window.setBuddyExpression?.("celebrating");
+        window.setBuddyMessage?.(`Quest passed! You fixed the bug and earned ${result.xp_awarded ? `+${result.xp_awarded}` : "verified"} XP! 🎉`);
+      } else {
+        window.setBuddyExpression?.("confused");
+        window.setBuddyMessage?.("Not quite yet! Check which name the denominator counts, then verify again.");
+      }
     } catch (error) {
       resultElement.textContent = `Mission verifier unavailable: ${error.message}. No XP was awarded.`;
+      window.setBuddyExpression?.("confused");
     }
   });
 
