@@ -26,8 +26,12 @@ def create_app(test_config=None):
     csrf.init_app(app)
 
     from app.auth import account, auth, inject_current_user, load_current_user
+    from app.buddy_api import init_buddy_api
     from app.catalog_routes import catalog_api
-    from app.cli import seed_curriculum_command
+    from app.cli import (
+        purge_buddy_conversations_command,
+        seed_curriculum_command,
+    )
     from app.pages import pages
     from app.routes import web
 
@@ -36,7 +40,9 @@ def create_app(test_config=None):
     app.register_blueprint(web)
     app.register_blueprint(pages)
     app.register_blueprint(catalog_api)
+    init_buddy_api(app)
     app.cli.add_command(seed_curriculum_command)
+    app.cli.add_command(purge_buddy_conversations_command)
     app.before_request(load_current_user)
     app.context_processor(inject_current_user)
     with app.app_context():

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import (
     CheckConstraint,
@@ -37,6 +37,10 @@ lesson_prerequisites = Table(
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def buddy_conversation_expiry() -> datetime:
+    return utc_now() + timedelta(days=90)
 
 
 class UTCDateTime(TypeDecorator):
@@ -100,6 +104,29 @@ class User(TimestampMixin, db.Model):
         uselist=False,
         passive_deletes=True,
     )
+    buddy_conversations = db.relationship(
+        "BuddyConversation",
+        back_populates="user",
+        passive_deletes=True,
+    )
+    buddy_memory_items = db.relationship(
+        "BuddyMemoryItem",
+        back_populates="user",
+        passive_deletes=True,
+    )
+    buddy_privacy_settings = db.relationship(
+        "BuddyPrivacySettings",
+        back_populates="user",
+        uselist=False,
+        passive_deletes=True,
+    )
+
+    @property
+    def buddy_memory_enabled(self) -> bool:
+        return bool(
+            self.buddy_privacy_settings
+            and self.buddy_privacy_settings.memory_enabled
+        )
 
 
 class Language(db.Model):
@@ -278,3 +305,169 @@ class LearningProgress(TimestampMixin, db.Model):
     status = db.Column(db.String(20), nullable=False, default="not_started")
     user = db.relationship("User")
     lesson = db.relationship("Lesson")
+
+
+class BuddyConversation(TimestampMixin, db.Model):
+    __tablename__ = "buddy_conversations"
+    __table_args__ = (
+        CheckConstraint(
+            "length(trim(id)) > 0",
+            name="ck_buddy_conversations_id_nonempty",
+        ),
+        CheckConstraint(
+            "length(trim(history_policy_version)) BETWEEN 1 AND 40",
+            name="ck_buddy_conversations_policy_version_length",
+        ),
+        CheckConstraint(
+            "last_meaningful_at >= created_at",
+            name="ck_buddy_conversations_activity_after_creation",
+        ),
+        CheckConstraint(
+            "expires_at > last_meaningful_at",
+            name="ck_buddy_conversations_expiry_after_activity",
+        ),
+        Index(
+            "ix_buddy_conversations_owner_expiry_activity",
+            "user_id",
+            "expires_at",
+            "last_meaningful_at",
+        ),
+        Index("ix_buddy_conversations_expires_at", "expires_at"),
+    )
+
+    id = db.Column(
+        db.String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+    user_id = db.Column(
+        db.String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    history_consent_at = db.Column(UTCDateTime(), nullable=False)
+    history_policy_version = db.Column(db.String(40), nullable=False)
+    last_meaningful_at = db.Column(UTCDateTime(), nullable=False, default=utc_now)
+    expires_at = db.Column(
+        UTCDateTime(),
+        nullable=False,
+        default=buddy_conversation_expiry,
+    )
+    user = db.relationship("User", back_populates="buddy_conversations")
+    messages = db.relationship(
+        "BuddyMessage",
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="(BuddyMessage.sequence, BuddyMessage.id)",
+    )
+
+
+class BuddyMessage(db.Model):
+    __tablename__ = "buddy_messages"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('user', 'assistant')",
+            name="ck_buddy_messages_role",
+        ),
+        CheckConstraint(
+            "sequence >= 0",
+            name="ck_buddy_messages_sequence_nonnegative",
+        ),
+        CheckConstraint(
+            "length(trim(content)) BETWEEN 1 AND 12000",
+            name="ck_buddy_messages_content_length",
+        ),
+        UniqueConstraint(
+            "conversation_id",
+            "sequence",
+            name="uq_buddy_messages_conversation_sequence",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(
+        db.String(36),
+        ForeignKey("buddy_conversations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    role = db.Column(db.String(20), nullable=False)
+    sequence = db.Column(db.Integer, nullable=False)
+    content = db.Column(db.String(12000), nullable=False)
+    created_at = db.Column(UTCDateTime(), nullable=False, default=utc_now)
+    conversation = db.relationship(
+        "BuddyConversation",
+        back_populates="messages",
+    )
+
+
+class BuddyMemoryItem(TimestampMixin, db.Model):
+    __tablename__ = "buddy_memory_items"
+    __table_args__ = (
+        CheckConstraint(
+            "length(trim(id)) > 0",
+            name="ck_buddy_memory_items_id_nonempty",
+        ),
+        CheckConstraint(
+            "category IN ('learning_goal', 'explanation_preference', "
+            "'learning_focus')",
+            name="ck_buddy_memory_items_category",
+        ),
+        CheckConstraint(
+            "length(trim(content)) BETWEEN 1 AND 500",
+            name="ck_buddy_memory_items_content_length",
+        ),
+        Index(
+            "ix_buddy_memory_items_user_updated",
+            "user_id",
+            "updated_at",
+        ),
+    )
+
+    id = db.Column(
+        db.String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+    user_id = db.Column(
+        db.String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    category = db.Column(db.String(40), nullable=False)
+    content = db.Column(db.String(500), nullable=False)
+    learner_approved_at = db.Column(UTCDateTime(), nullable=False)
+    user = db.relationship("User", back_populates="buddy_memory_items")
+
+
+class BuddyPrivacySettings(TimestampMixin, db.Model):
+    __tablename__ = "buddy_privacy_settings"
+    __table_args__ = (
+        CheckConstraint(
+            "memory_enabled = 0 OR "
+            "(memory_consent_at IS NOT NULL "
+            "AND memory_policy_version IS NOT NULL "
+            "AND length(trim(memory_policy_version)) BETWEEN 1 AND 40)",
+            name="ck_buddy_privacy_settings_memory_consent",
+        ),
+        CheckConstraint(
+            "memory_policy_version IS NULL OR "
+            "length(trim(memory_policy_version)) BETWEEN 1 AND 40",
+            name="ck_buddy_privacy_settings_policy_version_length",
+        ),
+    )
+
+    user_id = db.Column(
+        db.String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    memory_enabled = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=False,
+        server_default="0",
+    )
+    memory_consent_at = db.Column(UTCDateTime(), nullable=True)
+    memory_policy_version = db.Column(db.String(40), nullable=True)
+    user = db.relationship("User", back_populates="buddy_privacy_settings")

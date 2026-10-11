@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Buddy Mentor — CodeQuest AI{% endblock %}
+{% block content %}
+<section class="buddy-page" id="buddy-app">
+  <header class="buddy-page-header">
+    <div>
+      <p class="eyebrow"><span class="eyebrow-line"></span> YOUR CODING COMPANION</p>
+      <h1>Learn with <span class="text-gradient">Buddy.</span></h1>
+      <p class="buddy-page-description">A patient programming mentor for your next small step. Ask a question, explore an idea, or get help understanding an error.</p>
+    </div>
+    <p class="mock-banner" role="status"><span aria-hidden="true">◇</span> MOCK MODE — responses are simulated</p>
+  </header>
+
+  <div class="buddy-layout">
+    <section class="buddy-chat-panel" aria-labelledby="buddy-chat-heading">
+      <div class="buddy-panel-heading">
+        <div class="buddy-heading-avatar" aria-hidden="true">B</div>
+        <div>
+          <h2 id="buddy-chat-heading">Buddy Mentor</h2>
+          <p><span class="buddy-online-dot" aria-hidden="true"></span> Local mock · no code execution</p>
+        </div>
+        <label class="buddy-language-picker" for="buddy-language">Language
+          <select id="buddy-language" name="language">
+            <option value="">Not specified</option>
+            <option value="python">Python</option>
+            <option value="javascript">JavaScript</option>
+            <option value="c">C</option>
+            <option value="cpp">C++</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="buddy-transcript" id="buddy-transcript" role="log" aria-label="Conversation with Buddy" aria-live="polite" aria-relevant="additions text">
+        <article class="buddy-message buddy-message-assistant">
+          <span class="buddy-message-avatar" aria-hidden="true">B</span>
+          <div class="buddy-message-body">
+            <p class="buddy-message-author">Buddy <span>MOCK</span></p>
+            <p>Hi! I can help you think through a coding idea, one step at a time. What are you working on?</p>
+          </div>
+        </article>
+      </div>
+
+      <div class="buddy-compose-error" id="buddy-compose-error" role="alert" hidden></div>
+      <form class="buddy-composer" id="buddy-composer">
+        <label class="visually-hidden" for="buddy-message">Your message to Buddy</label>
+        <textarea id="buddy-message" name="message" rows="2" maxlength="12000" placeholder="Ask a coding question..." required disabled></textarea>
+        <div class="buddy-composer-footer">
+          <p>Enter to send · Shift+Enter for a new line</p>
+          <button class="button button-primary" id="buddy-send" type="submit" disabled>
+            <span>Send</span><span aria-hidden="true">↑</span>
+          </button>
+        </div>
+      </form>
+      <p class="buddy-privacy-note">Messages are not saved unless you enable saved history below. Never paste passwords, API keys, or other secrets.</p>
+    </section>
+
+    <aside class="buddy-sidebar" aria-label="Buddy conversation and privacy settings">
+      <section class="buddy-side-card buddy-history-card" aria-labelledby="buddy-history-heading">
+        <div class="buddy-side-title">
+          <div><p class="eyebrow">YOUR CHOICE</p><h2 id="buddy-history-heading">Saved history</h2></div>
+          <span class="buddy-side-icon" aria-hidden="true">◷</span>
+        </div>
+        <p class="buddy-side-copy" id="buddy-history-description">By default, this chat stays only in this browser tab. Opt in to save conversations to your account and reopen them later.</p>
+        <div class="buddy-consent-actions" id="buddy-consent-actions" hidden>
+          <button class="button button-primary button-small" id="buddy-history-enable" type="button" disabled>Enable saved history</button>
+          <button class="button button-outline button-small" id="buddy-history-decline" type="button" disabled>Not now</button>
+        </div>
+        <div class="buddy-history-controls">
+          <button class="button button-outline button-small buddy-history-revoke" id="buddy-history-revoke" type="button" hidden disabled>Turn off future saving</button>
+          <button class="button button-outline button-small buddy-new-chat" id="buddy-new-chat" type="button" hidden disabled>New conversation</button>
+        </div>
+        <label class="buddy-conversation-label" for="buddy-conversations">Your saved conversations</label>
+        <div class="buddy-conversation-list" id="buddy-conversations" aria-live="polite">
+          <p class="buddy-muted">Saved conversations will appear here when enabled.</p>
+        </div>
+      </section>
+
+      <section class="buddy-side-card" aria-labelledby="buddy-memory-heading">
+        <div class="buddy-side-title">
+          <div><p class="eyebrow">OPTIONAL PERSONALIZATION</p><h2 id="buddy-memory-heading">Learning memory</h2></div>
+          <span class="buddy-side-icon" aria-hidden="true">✧</span>
+        </div>
+        <p class="buddy-side-copy" id="buddy-memory-status">Checking your memory setting…</p>
+        <div class="buddy-memory-actions">
+          <button class="button button-outline button-small" id="buddy-memory-toggle" type="button" disabled>Loading…</button>
+          <button class="button button-outline button-small" id="buddy-memory-add" type="button" hidden disabled>Add memory</button>
+        </div>
+        <p class="buddy-memory-warning" id="buddy-memory-warning" hidden>Turning memory off deletes saved items after confirmation. This does not delete saved conversations.</p>
+        <div class="buddy-memory-list" id="buddy-memory-list" aria-live="polite"></div>
+        <form class="buddy-memory-editor" id="buddy-memory-editor" hidden>
+          <h3 id="buddy-memory-editor-title">Add a learning memory</h3>
+          <label for="buddy-memory-category">Category</label>
+          <select id="buddy-memory-category" name="category" required>
+            <option value="learning_goal">Learning goal</option>
+            <option value="explanation_preference">Explanation preference</option>
+            <option value="learning_focus">Learning focus</option>
+          </select>
+          <label for="buddy-memory-content">Memory</label>
+          <textarea id="buddy-memory-content" name="content" maxlength="500" rows="3" required></textarea>
+          <label class="buddy-approval"><input id="buddy-memory-approval" type="checkbox" required> I approve saving this memory.</label>
+          <div class="buddy-memory-editor-actions">
+            <button class="button button-primary button-small" type="submit">Save approved memory</button>
+            <button class="button button-outline button-small" id="buddy-memory-cancel" type="button">Cancel</button>
+          </div>
+        </form>
+      </section>
+    </aside>
+  </div>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+</section>
+<script src="{{ url_for('static', filename='js/buddy.js') }}" defer></script>
+{% endblock %}

@@ -20,6 +20,7 @@
         <nav class="main-nav" aria-label="Main navigation">
           <a class="{{ 'active' if page == 'home' else '' }}" href="{{ url_for('web.home') }}">Home</a>
           <a class="{{ 'active' if page in ['learn', 'roadmap', 'topic', 'lesson'] else '' }}" href="{{ url_for('pages.learn') }}">Learn</a>
+          {% if current_user %}<a class="{{ 'active' if page == 'buddy' else '' }}" href="{{ url_for('pages.buddy') }}">Buddy</a>{% endif %}
         </nav>
         <a class="button button-small button-outline header-cta" href="{{ url_for('pages.learn') }}">Explore paths <span aria-hidden="true">↗</span></a>
         <nav class="account-nav" aria-label="Account navigation">
@@ -40,6 +41,7 @@
           <nav class="mobile-menu-panel" aria-label="Mobile navigation">
             <a href="{{ url_for('web.home') }}">Home</a>
             <a href="{{ url_for('pages.learn') }}">Learn</a>
+            {% if current_user %}<a href="{{ url_for('pages.buddy') }}">Buddy</a>{% endif %}
             {% if current_user %}
               <a href="{{ url_for('account.profile') }}">Profile</a>
               <a href="{{ url_for('account.settings') }}">Settings</a>

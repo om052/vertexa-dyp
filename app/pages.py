@@ -1,5 +1,6 @@
 from flask import Blueprint, abort, render_template
 from sqlalchemy import select
+from app.auth import login_required
 from app.extensions import db
 from app.models import Language, Lesson, Topic
 
@@ -10,6 +11,12 @@ pages = Blueprint("pages", __name__)
 @pages.get("/learn")
 def learn():
     return render_template("learn.html", page="learn")
+
+
+@pages.get("/buddy")
+@login_required
+def buddy():
+    return render_template("buddy.html", page="buddy")
 
 
 @pages.get("/learn/<language_code>")

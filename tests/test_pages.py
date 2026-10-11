@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 
 from app import create_app
 from app.extensions import db
-from app.models import Language, Lesson, Topic
+from app.models import Language, Lesson, Topic, User
 from app.services.curriculum import seed_curriculum
 
 
@@ -49,6 +49,52 @@ class LearningPagesTests(unittest.TestCase):
         response = self.client.get("/health")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json(), {"status": "ok"})
+
+    def test_buddy_page_requires_login_and_renders_for_authenticated_user(self):
+        response = self.client.get("/buddy")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/auth/login", response.headers["Location"])
+
+        with self.app.app_context():
+            user = User()
+            db.session.add(user)
+            db.session.commit()
+            user_id = user.id
+
+        client = self.app.test_client()
+        with client.session_transaction() as state:
+            state["user_id"] = user_id
+        response = client.get("/buddy")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"MOCK MODE", response.data)
+        self.assertIn(b"responses are simulated", response.data)
+        self.assertIn(b'name="csrf-token" content="', response.data)
+        self.assertIn(b'id="buddy-history-enable"', response.data)
+        self.assertIn(b'id="buddy-memory-toggle"', response.data)
+
+    def test_buddy_page_loads_its_static_assets(self):
+        with self.app.app_context():
+            user = User()
+            db.session.add(user)
+            db.session.commit()
+            user_id = user.id
+
+        client = self.app.test_client()
+        with client.session_transaction() as state:
+            state["user_id"] = user_id
+        page = client.get("/buddy")
+        self.assertEqual(page.status_code, 200)
+
+        script = client.get("/static/js/buddy.js")
+        styles = client.get("/static/css/styles.css")
+        self.assertEqual(script.status_code, 200)
+        self.assertIn(b"submitMessage", script.data)
+        self.assertNotIn(b"innerHTML", script.data)
+        self.assertEqual(styles.status_code, 200)
+        self.assertIn(b"@media (max-width: 375px)", styles.data)
+        script.close()
+        styles.close()
 
     def test_learning_pages_render_for_seeded_catalog_items(self):
         self.seed()

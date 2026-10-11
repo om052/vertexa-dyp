@@ -300,8 +300,93 @@ writers. This foundation is not a production-readiness claim.
 - `tests/`: application, database, curriculum, and auth tests using isolated
   temporary databases.
 
-Learner-unlocking workflows, saved lesson progress, code execution, Buddy
-interactions, AI, and games/progression are not implemented yet. Add their
-modules when those features are developed.
+Learner-unlocking workflows, saved lesson progress, code execution, external AI
+integration, and games/progression are not implemented yet. Buddy's authenticated
+chat page and protected API use a deterministic local mock only.
+
+## Buddy storage services
+
+The Buddy database foundation includes explicit-consent saved conversations,
+ordered messages, learner-approved memory items, and per-user privacy settings.
+Service functions enforce ownership, reject expired conversations for reads,
+and treat missing privacy settings as memory disabled. Buddy's provider
+contract currently has only a deterministic, local mock; no external provider
+or Buddy API is enabled.
+
+The mock is for tests and development only. Its output is explicitly marked
+`MOCK ONLY`; it does not analyze or execute submitted code. The calling
+service must pass conversation context explicitly and may pass approved
+memories only after the privacy service confirms opt-in.
+
+To remove conversations whose 90-day expiry has elapsed, run:
+
+```powershell
+python -m flask --app app:create_app purge-buddy-conversations
+```
+
+The command is safe to repeat. It removes expired conversations and their
+messages from the configured database. Deployment scheduling is an operator
+responsibility; no scheduler or worker is included. This command does not
+change backup retention: older backups may still contain deleted conversation
+data, and their retention and expiry cleanup must be managed separately.
+
+## Buddy protected API (mock only)
+
+All routes below are authenticated, return JSON, and set `Cache-Control:
+no-store`. Unauthenticated requests receive HTTP 401; private resources owned
+by another learner and expired conversations both receive the same generic
+404. State-changing requests use Flask-WTF CSRF protection and must send the
+token rendered in the current session using the `X-CSRFToken` header. JSON
+requests are limited to 64 KiB. Request errors use the shape
+`{"error":{"code":"...","message":"..."}}`.
+
+History consent is an explicit, revocable choice held in the authenticated
+Flask session. It is not a durable account preference: each saved conversation
+still records its own consent timestamp and policy version. Without session
+consent, a Buddy response uses only the current message and is not saved.
+
+| Method and route | Request JSON | Response JSON |
+| --- | --- | --- |
+| `GET /api/buddy/status` | — | `available`, `provider` (`name`, `is_mock`), `history` (`consent`, `consent_scope`), and `memory` (`enabled`, `consent_at`) |
+| `POST /api/buddy/history-consent` | `{"consent": true}` or `{"consent": false}` | `history` (`consent`, `consent_scope`, `policy_version`) |
+| `POST /api/buddy/respond` | `{"message":"...", "conversation_id":"optional UUID", "language":"python"}`; `language` may be `javascript`, `c`, or `cpp` | `response` (`content`, `provider`, `is_mock`, `intent`, `teaching_approach`), `conversation` (metadata or `null`), and `saved` |
+| `GET /api/buddy/conversations` | — | `conversations`: the current learner's unexpired conversation metadata |
+| `GET /api/buddy/conversations/<id>` | — | `conversation` metadata and ordered `messages` |
+| `DELETE /api/buddy/conversations/<id>` | — | `{"deleted":true}` |
+| `GET /api/buddy/privacy` | — | `privacy` (`memory_enabled`, `memory_consent_at`, `memory_policy_version`) |
+| `PATCH /api/buddy/privacy` | `{"memory_enabled":true}` or `{"memory_enabled":false,"confirm_delete_existing":true}` | Updated `privacy` fields |
+| `GET /api/buddy/memory` | — | `memory_enabled` and approved `items` |
+| `POST /api/buddy/memory` | `{"category":"learning_goal","content":"...","learner_approved":true}` | Created `item` (HTTP 201) |
+| `PATCH /api/buddy/memory/<id>` | `{"category":"learning_focus","content":"...","learner_approved":true}` | Updated `item` |
+| `DELETE /api/buddy/memory/<id>` | — | `{"deleted":true}` |
+
+Only the deterministic local mock is configured; responses are marked
+`MOCK ONLY` and `is_mock: true`. No route executes submitted code or connects
+to an external AI service. Buddy endpoints are limited to 30 requests per
+authenticated user per 60-second sliding window in each application process.
+This in-process limiter is not shared across multiple workers or machines and
+is not a substitute for a distributed production rate limiter.
+
+## Buddy chat page (mock only)
+
+The authenticated page is available at `GET /buddy`. It calls the documented
+`/api/buddy/...` routes from the browser and receives the CSRF token in a page
+meta element for state-changing requests. Sign-in is required; the API remains
+responsible for authentication, ownership checks, validation, CSRF protection,
+and rate limiting.
+
+Saved conversation history is off until the learner explicitly opts in.
+Without consent, exchanges are sent to the mock for the current response only
+and stay in tab memory; they are not written to browser or server storage.
+Turning off consent clears the unsaved page transcript but does not delete
+previously saved conversations. Saved conversations can be selected or
+deleted from the page. Memory is a separate opt-in; creating or editing a
+memory requires learner approval, and disabling memory may require confirmation
+to delete stored items.
+
+All Buddy responses are visibly labelled as simulated mock output. The page
+does not execute learner code or connect to an external provider. The
+per-process API request limiter does not coordinate across workers, and this
+development mock interface is not a production AI launch.
 #   v e r t e x a - d y p  
  

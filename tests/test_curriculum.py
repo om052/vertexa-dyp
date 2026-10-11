@@ -283,7 +283,7 @@ class CurriculumTests(unittest.TestCase):
             revision = db.session.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-        self.assertEqual(revision, "a81f2d7c9b44")
+        self.assertEqual(revision, "b7c4e91a6d20")
 
         result = self.app.test_cli_runner().invoke(args=["db", "check"])
         self.assertEqual(result.exit_code, 0, result.output)

@@ -1,8 +1,12 @@
 <aside class="buddy-note" aria-label="Buddy feature notice">
   <div class="buddy-avatar" aria-hidden="true">B</div>
   <div>
-    <p class="buddy-title">Buddy is getting ready</p>
-    <p class="buddy-copy">Your image-based learning companion is planned for a later phase.</p>
+    <p class="buddy-title">Meet Buddy</p>
+    <p class="buddy-copy">Explore coding questions with a clearly labeled local mock mentor.</p>
   </div>
-  <span class="status-pill"><span class="status-dot" aria-hidden="true"></span>Coming later</span>
+  {% if current_user %}
+    <a class="status-pill buddy-launch-link" href="{{ url_for('pages.buddy') }}">Open mentor <span aria-hidden="true">↗</span></a>
+  {% else %}
+    <a class="status-pill buddy-launch-link" href="{{ url_for('auth.login', next=url_for('pages.buddy')) }}">Sign in to try <span aria-hidden="true">↗</span></a>
+  {% endif %}
 </aside>
